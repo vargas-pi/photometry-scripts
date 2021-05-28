@@ -1,0 +1,9 @@
+name: photometry
+dependencies:
+  - python=3.6
+  - numpy
+  - scipy
+  - pandas
+  - matplotlib
+  - pip:
+    - tdt
