@@ -123,7 +123,7 @@ class fp_analysis:
             raise Exception('Unrecognized File Format!')
         for i in range(len(d)):
             d[i].t_stim=t_stims[d[i].mouse_id]
-            m=self.normalize_downsample(d[i])
+            m=self.normalize_downsample(d[i],plot=False)
             self.raw_data.append(d[i])
             self.normed_data.append(m)
         self.loaded=True
@@ -190,12 +190,12 @@ class fp_analysis:
 
         
         for i in range(len(self.raw_data)):
-            self.normed_data[i]=self.normalize_downsample(self.raw_data[i])
+            self.normed_data[i]=self.normalize_downsample(self.raw_data[i],plot=false)
             
         if hasattr(self,'excluded_raw'):
             if len(self.excluded_raw)>0:
                 for i in range(len(self.excluded_raw)):
-                    self.excluded_normed[i]=self.normalize_downsample(self.excluded_raw[i])
+                    self.excluded_normed[i]=self.normalize_downsample(self.excluded_raw[i],plot=False)
 
         self.compute_means()
 
@@ -294,7 +294,7 @@ class fp_analysis:
         savemat(os.path.join(self.file_loc,'analysis_'+'_'.join([r.mouse_id for r in self.raw_data])+'.mat'),{'data':data})
 
 
-    def normalize_downsample(self,rec:mouse_data):
+    def normalize_downsample(self,rec:mouse_data,plot=True):
         """
         call the speicified normalization method and downsample to ~1 Hz. when finished, plot the normalized data.
         NOTE: the sampling rate from synapse isn't a whole number so we can't necessarilly get exaclt 1Hz but it's close
@@ -303,6 +303,8 @@ class fp_analysis:
         ----------
         rec: mouse_data
             the mouse_data object with the raw data to be normalized and downsampled
+        plot: bool,optional
+            whether or not to plot the normalized data at the end
 
         Returns
         -------
@@ -338,12 +340,13 @@ class fp_analysis:
         m.t_stim=rec.t_stim
 
         #plot the data
-        py.plot(m.t,m.F490,'g',linewidth=0.5)
-        py.plot(m.t,m.F405,'r',linewidth=0.5)
-        py.axvline(x=0, c='k',ls='--', alpha=0.5)
-        py.xlabel('Time Relative to Stimulus (s)')
-        py.ylabel(r'$\frac{\Delta F}{F}$ (%)')
-        py.show()
+        if plot:
+            py.plot(m.t,m.F490,'g',linewidth=0.5)
+            py.plot(m.t,m.F405,'r',linewidth=0.5)
+            py.axvline(x=0, c='k',ls='--', alpha=0.5)
+            py.xlabel('Time Relative to Stimulus (s)')
+            py.ylabel(r'$\frac{\Delta F}{F}$ (%)')
+            py.show()
 
         return m
 
@@ -367,6 +370,9 @@ class fp_analysis:
         py.ylabel(r'$\frac{\Delta F}{F}$ (%)')
 
         py.show()
+
+    def plot_ind_trace(self,mouse):
+        raise NotImplementedError
         
     def plot_490(self):
         """
