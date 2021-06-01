@@ -1,18 +1,90 @@
-import json
-import numpy as np
 import matplotlib.pyplot as py
-from import_plot import mouse_data, Encoder, hook
+from utilities import *
 import os
 from scipy import stats as st
 import pandas as pd
-import math
 from typing import Dict
 from pathlib import Path
 from scipy.io import savemat
 
-class analysis:
 
-    def __init__(self, norm_method,t_endrec,ex=4,file_format='npy',file_loc=None):
+class fp_analysis:
+    """
+    Class for performing post-hoc analyses of fiber photometry data
+    ...
+
+    Attributes
+    ----------
+    norm_method : func
+            a callable function for cropping and normalizing all data in 
+            this analysis.this function must take the following as arguments:                 
+
+            rec: mouse_data
+                an instance of a mouse_data object storing the raw data for a
+                given mouse
+            t_endrec: float
+                the amount of time in seconds from stim to the end of the recording 
+                to keep in the analysis
+            
+            in turn, it should return the following:
+
+            normed_490: numpy.ndarray
+                1D array of normalized 490 data 
+            normed_405: numpy.ndarray
+                1D array of normalized 405 data 
+            start_ind: int
+                index of the beginning of the cropped region of the recording relative
+                to the raw data
+            stim_ind: int
+                index of the stim time relative to the raw data
+            end_ind: int
+                index of the end of the cropped region of the recording relative
+                to the raw data
+
+        t_endrec : float
+            the amount of time in seconds, from the stim to the end of the recording, 
+            to keep in the analysis
+
+        ex : float, optional
+            the number of standard deviations above and below the mean of a given mouse's
+            data beyond which to exclude (default=4)
+        
+        file_format: str, optional
+            the file type to save the analysis to. This can be either 'npy' or 'json' (default npy). 
+            NOTE: json is mostly still an option due to older versions of the code that used json 
+            for cross platform compatibility. It is strongly recommended to use npy files as they are
+            much faster to read and write to. If you would like to export normalized data from this analysis
+            to further analyze with another language, the export_to_mat method may be useful
+        
+        file_loc: str, optional
+            the path to a directory to save the analysis to
+
+    Methods
+    -------
+
+    """
+
+    def __init__(self, norm_method,t_endrec,ex=4,file_format='npy',file_loc='analyses'):
+        """
+        Parameters
+        ----------
+        norm_method : func
+            see Attributes
+        t_endrec : float
+            see Attributes
+        ex : float, optional
+            see Attributes
+        file_format: str, optional
+            see Attributes
+        file_loc: str, optional
+            see Attributes
+
+        Returns
+        --------
+        self: fp_analysis
+
+        """
+
         self.norm_method=norm_method
         self.t_endrec=t_endrec
         self.raw_data= []
@@ -21,11 +93,7 @@ class analysis:
         self.excluded_normed = []
         self.loaded=False
         self.ex=ex
-
-        if not file_loc:
-            self.file_loc='analyses'
-        else:
-            self.file_loc=file_loc
+        self.file_loc=file_loc
 
         if file_format in ['json','npy']:
             self.file_format=file_format
@@ -35,9 +103,14 @@ class analysis:
 
     def load_append_save(self,file:Path,t_stims:Dict[str,float]):
         """
-        allow users to specify the address of a data file exported from python
-        load in this data, normalize it and allow the user to decide if they'd like to keep it in the analysis
-        for all data kept in the analysis we then characterize it and save to the instance for later use
+        load, normalize and add data to the analysis. when finished, save the analysis
+        
+        Parameters
+        ----------
+        file: pathlib.Path
+            the path to the file to load into the analysis
+        t_stims: Dict[str,float]
+            a dictionary matching each mouse in the specified file to its respective stimulus time
         """
 
         if file.suffix=='.json':
@@ -89,17 +162,28 @@ class analysis:
             self.err_405=err_405
 
 
-    def update_params(self,length=False,norm_method=False,ex_crit=False,file_format=False):
+    def update_params(self,t_endrec=False,norm_method=False,ex=False,file_format=False):
         """
         update parameters set in the beginning of the analysis and recompute
+
+        Parameters
+        ----------
+        t_endrec: float, optional
+            see Attributes
+        norm_method: func, optional
+            see Attributes
+        ex: float, optional
+            see Attributes
+        file_format: str, optional
+            see Attributes
         """
 
-        if not (length or norm_method or ex_crit or file_format):
+        if not (t_endrec or norm_method or ex or file_format):
             return
         
-        self.t_endrec = length if length else self.t_endrec
+        self.t_endrec = t_endrec if t_endrec else self.t_endrec
         self.norm_method= norm_method if norm_method else self.norm_method
-        self.ex=ex_crit if ex_crit else self.ex
+        self.ex=ex if ex else self.ex
 
         if file_format in ['json','npy']:
             self.file_format=file_format
@@ -118,6 +202,11 @@ class analysis:
     def remove_mouse(self,mouse:str):
         """
         remove a mouse from the analysis
+
+        Parameters
+        -----------
+        mouse: str
+            the id of the mouse to remove
         """
 
         excl_raw=list(filter(lambda x: x.mouse_id==mouse, self.raw_data))
@@ -141,6 +230,11 @@ class analysis:
     def retrieve_excluded(self,mouse:str):
         """
         retrieve an excluded mouse from the analysis
+
+        Parameters
+        -----------
+        mouse: str
+            the id of the excluded mouse to retrieve
         """
         if not hasattr(self,'excluded_raw') or len(self.excluded_raw)==0:
             print('this analysis has no excluded data')
@@ -159,6 +253,12 @@ class analysis:
         """
         export the analysis object to a file in the output folder
         if the output folder hasn't been created, this will create it
+
+        Parameters
+        ----------
+        file_format: str, optional
+            see Attributes
+
         """
         if not self.loaded:
             print('Must have usable data loaded in the analysis first!')
@@ -179,7 +279,11 @@ class analysis:
             np.save(os.path.join(self.file_loc,'analysis_'+'_'.join([r.mouse_id for r in self.raw_data])+'.npy'),self)
             print('save successful!')
     
-    def export_to_mat(self,):
+    def export_to_mat(self):
+        """
+        forward fill all nan values in the normalized 490 data and export
+        the resulting array to a .mat file
+        """
         data=self.all_490.copy()
         if np.isnan(data).any():
             #check if there are nans and forward fill them first
@@ -190,10 +294,20 @@ class analysis:
         savemat(os.path.join(self.file_loc,'analysis_'+'_'.join([r.mouse_id for r in self.raw_data])+'.mat'),{'data':data})
 
 
-    def normalize_downsample(self,rec:mouse_data,ex=4):
+    def normalize_downsample(self,rec:mouse_data):
         """
-        call the speicified normalization method and downsample to ~1 Hz'
+        call the speicified normalization method and downsample to ~1 Hz. when finished, plot the normalized data.
         NOTE: the sampling rate from synapse isn't a whole number so we can't necessarilly get exaclt 1Hz but it's close
+
+        Parameters
+        ----------
+        rec: mouse_data
+            the mouse_data object with the raw data to be normalized and downsampled
+
+        Returns
+        -------
+        m: mouse_data
+            the normalized downsampled data for the given mouse
         """
         normed_490, normed_405, start_ind, stim_ind, end_ind = self.norm_method(rec,self.t_endrec)
         t=rec.t[start_ind:end_ind]-rec.t[stim_ind]
@@ -232,66 +346,6 @@ class analysis:
         py.show()
 
         return m
-
-    @staticmethod
-    def select_data(data:mouse_data,t_endrec):
-        """
-        select the data that will be used in the analysis'
-        """
-
-        
-        start_ind=math.ceil((data.t_stim-300)*data.fs)+1
-        stim_ind=math.ceil((data.t_stim)*data.fs)+1
-        end_ind=math.ceil((data.t_stim+t_endrec)*data.fs)+1
-
-        pre_stim_490=data.F490[start_ind:stim_ind]
-        pre_stim_405=data.F405[start_ind:stim_ind]
-        sel_490=data.F490[start_ind:end_ind+1]
-        sel_405=data.F405[start_ind:end_ind+1]
-
-
-        return (start_ind, stim_ind, end_ind, pre_stim_490, pre_stim_405, sel_490, sel_405)
-    
-    @staticmethod
-    def norm_to_median_pre_stim(data:mouse_data,t_endrec):
-        """
-        normalize to the median of the data 5 minutes before the stimulus'
-        """
-
-        start_ind, stim_ind, end_ind, pre_stim_490, pre_stim_405, sel_490, sel_405=analysis.select_data(data,t_endrec)
-
-        #compute the baseline by taking the median of the 5 miutes pre-stimu data
-        f490_baseline=np.median(pre_stim_490)
-        f405_baseline=np.median(pre_stim_405)
-
-        #normalize the 490 and 405 to the respctive baseline
-        normed_490=(sel_490-f490_baseline)/f490_baseline
-        normed_405=(sel_405-f405_baseline)/f405_baseline
-        return (normed_490,normed_405, start_ind, stim_ind, end_ind)
-
-    @staticmethod
-    def norm_to_405(data:mouse_data,t_endrec):
-        """
-        normalize to a linear fit of the 405 data'
-        """
-        start_ind, stim_ind, end_ind, pre_stim_490, pre_stim_405, sel_490, sel_405=analysis.select_data(data,t_endrec)
-
-        x=np.arange(len(sel_405))
-        m, b, _, _, _ = st.linregress(x, sel_405)
-
-        fit_405=m*x+b
-
-        normed_490=100*np.divide(sel_490-fit_405, fit_405)
-        normed_490-=np.median(normed_490[0:300])
-
-        normed_405=100*np.divide(sel_405-fit_405, fit_405)
-        normed_405-=np.median(normed_405[0:300])
-        
-        return (normed_490,normed_405, start_ind, stim_ind, end_ind)
-
-    @staticmethod
-    def zscore(data:mouse_data):
-        pass 
 
     def plot_both(self):
         """
@@ -335,6 +389,16 @@ class analysis:
     def bin_plot(self,binsize:int):
         """
         bin the data average the data in each bin for each mouse
+
+        Parameters
+        ----------
+        binsize: int
+            bin size in seconds
+
+        Returns
+        -------
+        binned: pandas.DataFrame
+            binned data
         """
 
         if not self.loaded:
@@ -400,6 +464,20 @@ class analysis:
     def bin_avg(self,start:int,end:int):
         """
         average over a specified section of data for each mouse
+
+        Parameters
+        ----------
+        start: int
+            start time of the bin
+        end: int
+            end time of the bin
+
+        Returns
+        -------
+        avg_dict: Dict[str,float]
+            dictionary pairing each mouse with the avg normed 490 value
+            in the specified bin
+            
         """
         if not self.loaded:
             print('Must have usable data loaded in the analysis first!')
@@ -437,7 +515,18 @@ class analysis:
     
     def ind_peak_df_f(self,extrema:str):
         """
-        determine either the min or max ∆f/f for each mouse
+        determine either the min or max ∆f/f and time for each mouse separately
+        TODO: we should also be saving the times of the peaks
+
+        Parameters
+        ----------
+        extrema: str
+            extrema (either 'min' or 'max') of the peak to search for
+        
+        Returns
+        -------
+        pks_dict: Dict[str,float]
+            dictionary pairing each mouse with the peak value
         """
 
         if not self.loaded:
@@ -483,7 +572,18 @@ class analysis:
 
     def mean_peak_df_f(self,extrema:str):
         """
-        determine either the min or max ∆f/f for each mouse
+        determine either the min or max ∆f/f in the mean signal and identify the values of the normed 490
+        at this time point in each individual mouse
+
+        Parameters
+        ----------
+        extrema: str
+            extrema (either 'min' or 'max') of the peak to search for
+        
+        Returns
+        -------
+        pks_dict: Dict[str,float]
+            dictionary pairing each mouse with the peak value
         """
 
         if not self.loaded:
@@ -513,17 +613,27 @@ class analysis:
 
         self.mean_pks.update({f'{extrema}':pks_dict})
 
+        return pks_dict
+
 
     def time_to_half_pk(self):
         raise NotImplementedError
 
-class loaded_analysis(analysis):
+
+class loaded_analysis(fp_analysis):
+    """a class for analyses loaded from json files"""
     def __init__(self,fpath):
+        """
+        Parameters
+        ----------
+        fpath: str
+            path to the anaalysis file
+        """
         with open(fpath,'r') as f: d=json.load(f,object_hook=hook)
         if d['norm_method']=='function':
             print('WARNING: No normalization  method is specified in this loaded analysis! Please update analysis parameters before adding any data.')
         else:
-            d['norm_method']=getattr(analysis,d['norm_method']['function'])
+            d['norm_method']=getattr(fp_analysis,d['norm_method']['function'])
             
         for key in d:
             if isinstance(d[key],list):
@@ -533,6 +643,19 @@ class loaded_analysis(analysis):
                 setattr(self,key,d[key])
 
 def load_analysis(fpath):
+    """
+    load an exported analysis (whether json or npy)
+
+    Parameters
+    ----------
+    fpath: str
+        path to analysis file
+
+    Returns
+    -------
+    a: fp_analysis
+        the analysis object
+    """
     fpath=Path(fpath).resolve()
     if fpath.suffix=='.json':
         a=loaded_analysis(fpath)

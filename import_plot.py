@@ -1,44 +1,13 @@
 import tdt
 import matplotlib.pyplot as py
 from matplotlib.animation import FuncAnimation
-import numpy as np
-import json
+from utilities import *
 import os
 from datetime import datetime as dt
 from threading import Thread, Event
 import time
 from collections import Callable
 
-output_filename='exported_data'
-
-class mouse_data:
-     #class to store data we want to keep
-    def __init__(self,mouse_id,F490,F405,fs,n=None,t=np.array([]),t_stim=None):
-        self.mouse_id=mouse_id
-        self.F490=F490
-        self.F405=F405
-        self.fs=fs
-        self.n=n if n else len(F490)
-        self.t=t if t.any() else np.arange(0,(self.n)/fs,1/fs)
-        self.t_stim=t_stim if t_stim else None
-
-
-class Encoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, np.ndarray):
-            return {'ndarray': obj.tolist()}
-        if isinstance(obj,Callable):
-            return {'function':obj.__name__}
-        if isinstance(obj,mouse_data):
-            return {'mouse_data':obj.__dict__}
-        return json.JSONEncoder.default(self, obj)
-
-def hook(obj):
-    if 'ndarray' in obj:
-        return np.array(obj['ndarray'])
-    if 'mouse_data' in obj:
-        return mouse_data(**obj['mouse_data'])
-    return obj
     
 def stream_plot(ylim:list,mouse1=None,mouse2=None):
     try:
@@ -59,7 +28,7 @@ def stream_plot(ylim:list,mouse1=None,mouse2=None):
         while green_light.is_set():
             
             for i in range(len(mice_data)):
-                #NOTE: At some point this should be updated so the gizmo/parameter name is a variable. 
+                #TODO: At some point this should be updated so the gizmo/parameter name is a variable. 
                 # Right now this function would probably only work on our setup
                 new_490=syn.getParameterValue('FibPho1','Response-1'+mice[i][1])
                 new_405=syn.getParameterValue('FibPho1','Response-2'+mice[i][1])

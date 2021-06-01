@@ -1,4 +1,9 @@
-from analysis_pipeline import *
+"""
+This script is a command line interface for running the fiber photometry analysis pipeline
+"""
+
+
+from fp_analysis import *
 
 print('==========================================================================')
 print('=================fiber-photometry analysis pipeline=======================')
@@ -8,7 +13,7 @@ print('=========================================================================
 print(' ')
 
 ans=int(input('Would you like to 1. load and add to an existing analysis or 2. start a new analysis? [1/2]: '))
-norm_methods=[analysis.norm_to_median_pre_stim, analysis.norm_to_405]
+norm_methods=[norm_to_median_pre_stim, norm_to_405]
 
 if ans==1:
     #load in the analysis from the specified file in the output folder
@@ -19,17 +24,16 @@ else:
     t_endrec = input('Enter length of recording in seconds from the stimulus time: ')
     t_endrec = float(t_endrec)
 
-    norm_methods=[analysis.norm_to_median_pre_stim, analysis.norm_to_405]
     norm_method=input('How would you like to normalize this data? 1. normalize to the median of pre-stimulus data, 2. normalize to the 405 [1/2]: ')
     norm_method=norm_methods[int(norm_method)-1]
 
     spec_exc_crit=input('Would you like to specify the exclusion criteria? (i.e. # of st devs above or below the mean of the data beyond which to exclude) [y/n]: ')
 
     if spec_exc_crit.lower() in ['n','no']:
-        a=analysis(norm_method,t_endrec)
+        a=fp_analysis(norm_method,t_endrec)
     else:
         ex=int(input('How many st. devs above or below the mean would you like to define as the limits of the data?: '))
-        a=analysis(norm_method,t_endrec,ex=ex)
+        a=fp_analysis(norm_method,t_endrec,ex=ex)
 
 def load_append_save_cli():
 
@@ -77,11 +81,11 @@ def update_params_cli():
     choice=input('(input the number of the desired choice):')
 
     if choice=='1':
-        a.update_params(length= int(input( 'Enter length of recording in seconds from the stimulus time:' )))
+        a.update_params(t_endrec= int(input( 'Enter length of recording in seconds from the stimulus time:' )))
     elif choice=='2':
         a.update_params(norm_method=norm_methods[int(input( 'How would you like to normalize this data? 1. normalize to the median of pre-stimulus data, 2. normalize to the 405 [1/2]:' ))-1]),
     elif choice=='3':
-        a.update_params(exc_crit=int(input( 'How many st. devs above or below the mean would you like to define as the limits of the data?: ' )))
+        a.update_params(ex=int(input( 'How many st. devs above or below the mean would you like to define as the limits of the data?: ' )))
     elif choice=='4':
         a.update_params(file_format=['npy','json'][-1+int(input( 'What file format would you like? 1. npy, 2. json [1/2]: ' ))])
         
