@@ -1,20 +1,21 @@
 import math
 import json
 import numpy as np
+from scipy import stats as st
 
 
 output_filename='exported_data'
 
 class mouse_data:
      """class to store data we want to keep"""
-    def __init__(self,mouse_id,F490,F405,fs,n=None,t=np.array([]),t_stim=None):
-        self.mouse_id=mouse_id
-        self.F490=F490
-        self.F405=F405
-        self.fs=fs
-        self.n=n if n else len(F490)
-        self.t=t if t.any() else np.arange(0,(self.n)/fs,1/fs)
-        self.t_stim=t_stim if t_stim else None
+     def __init__(self,mouse_id,F490,F405,fs,n=None,t=np.array([]),t_stim=None):
+         self.mouse_id=mouse_id
+         self.F490=F490
+         self.F405=F405
+         self.fs=fs
+         self.n=n if n else len(F490)
+         self.t=t if t.any() else np.arange(0,(self.n)/fs,1/fs)
+         self.t_stim=t_stim if t_stim else None
 
 
 class Encoder(json.JSONEncoder):

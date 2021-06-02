@@ -3,7 +3,7 @@ This script is a command line interface for running the fiber photometry analysi
 """
 
 
-from fp_analysis import *
+from analysis_pipeline import *
 
 print('==========================================================================')
 print('=================fiber-photometry analysis pipeline=======================')
@@ -30,10 +30,10 @@ else:
     spec_exc_crit=input('Would you like to specify the exclusion criteria? (i.e. # of st devs above or below the mean of the data beyond which to exclude) [y/n]: ')
 
     if spec_exc_crit.lower() in ['n','no']:
-        a=fp_analysis(norm_method,t_endrec)
+        a=analysis(norm_method,t_endrec)
     else:
         ex=int(input('How many st. devs above or below the mean would you like to define as the limits of the data?: '))
-        a=fp_analysis(norm_method,t_endrec,ex=ex)
+        a=analysis(norm_method,t_endrec,ex=ex)
 
 def load_append_save_cli():
 
@@ -81,13 +81,13 @@ def update_params_cli():
     choice=input('(input the number of the desired choice):')
 
     if choice=='1':
-        a.update_params(t_endrec= int(input( 'Enter length of recording in seconds from the stimulus time:' )))
+        a.t_endrec = int(input( 'Enter length of recording in seconds from the stimulus time:' ))
     elif choice=='2':
-        a.update_params(norm_method=norm_methods[int(input( 'How would you like to normalize this data? 1. normalize to the median of pre-stimulus data, 2. normalize to the 405 [1/2]:' ))-1]),
+        a.norm_method=norm_methods[int(input( 'How would you like to normalize this data? 1. normalize to the median of pre-stimulus data, 2. normalize to the 405 [1/2]:' ))-1]
     elif choice=='3':
-        a.update_params(ex=int(input( 'How many st. devs above or below the mean would you like to define as the limits of the data?: ' )))
+        a.ex=int(input( 'How many st. devs above or below the mean would you like to define as the limits of the data?: ' ))
     elif choice=='4':
-        a.update_params(file_format=['npy','json'][-1+int(input( 'What file format would you like? 1. npy, 2. json [1/2]: ' ))])
+        a.file_format=['npy','json'][-1+int(input( 'What file format would you like? 1. npy, 2. json [1/2]: ' ))]
         
 
 def remove_mouse_cli():

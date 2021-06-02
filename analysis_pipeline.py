@@ -1,3 +1,4 @@
+from re import L
 import matplotlib.pyplot as py
 from utilities import *
 import os
@@ -8,7 +9,7 @@ from pathlib import Path
 from scipy.io import savemat
 
 
-class fp_analysis:
+class analysis:
     """
     Class for performing post-hoc analyses of fiber photometry data
     ...
@@ -16,51 +17,89 @@ class fp_analysis:
     Attributes
     ----------
     norm_method : func
-            a callable function for cropping and normalizing all data in 
-            this analysis.this function must take the following as arguments:                 
+        a callable function for cropping and normalizing all data in 
+        this analysis.this function must take the following as arguments:                 
 
-            rec: mouse_data
-                an instance of a mouse_data object storing the raw data for a
-                given mouse
-            t_endrec: float
-                the amount of time in seconds from stim to the end of the recording 
-                to keep in the analysis
-            
-            in turn, it should return the following:
-
-            normed_490: numpy.ndarray
-                1D array of normalized 490 data 
-            normed_405: numpy.ndarray
-                1D array of normalized 405 data 
-            start_ind: int
-                index of the beginning of the cropped region of the recording relative
-                to the raw data
-            stim_ind: int
-                index of the stim time relative to the raw data
-            end_ind: int
-                index of the end of the cropped region of the recording relative
-                to the raw data
-
-        t_endrec : float
-            the amount of time in seconds, from the stim to the end of the recording, 
+        rec: mouse_data
+            an instance of a mouse_data object storing the raw data for a
+            given mouse
+        t_endrec: float
+            the amount of time in seconds from stim to the end of the recording 
             to keep in the analysis
+            
+        in turn, it should return the following:
 
-        ex : float, optional
-            the number of standard deviations above and below the mean of a given mouse's
-            data beyond which to exclude (default=4)
+        normed_490: numpy.ndarray
+            1D array of normalized 490 data 
+        normed_405: numpy.ndarray
+            1D array of normalized 405 data 
+        start_ind: int
+            index of the beginning of the cropped region of the recording relative
+            to the raw data
+        stim_ind: int
+            index of the stim time relative to the raw data
+        end_ind: int
+            index of the end of the cropped region of the recording relative
+            to the raw data
+
+    t_endrec : float
+        the amount of time in seconds, from the stim to the end of the recording, 
+        to keep in the analysis
+
+    ex : float, optional
+        the number of standard deviations above and below the mean of a given mouse's
+        data beyond which to exclude (default=4)
         
-        file_format: str, optional
-            the file type to save the analysis to. This can be either 'npy' or 'json' (default npy). 
-            NOTE: json is mostly still an option due to older versions of the code that used json 
-            for cross platform compatibility. It is strongly recommended to use npy files as they are
-            much faster to read and write to. If you would like to export normalized data from this analysis
-            to further analyze with another language, the export_to_mat method may be useful
+    file_format: str, optional
+        the file type to save the analysis to. This can be either 'npy' or 'json' (default npy). 
+        NOTE: json is mostly still an option due to older versions of the code that used json 
+        for cross platform compatibility. It is strongly recommended to use npy files as they are
+        much faster to read and write to. If you would like to export normalized data from this analysis
+        to further analyze with another language, the export_to_mat method may be useful
         
-        file_loc: str, optional
+    file_loc: str, optional
             the path to a directory to save the analysis to
 
     Methods
     -------
+    load_append_save(file:Path,t_stims:Dict[str,float])
+        load, normalize and add data to the analysis. when finished, save the analysis
+    normalize_downsample(rec:mouse_data,plot=True)
+        call the speicified normalization method and downsample to ~1 Hz. when finished,
+        plot the normalized data.
+    compute_means()
+        compute the average and standard error accross recordings
+    recompute()
+        re-crop/normalize all data and recompute the mean signal after updating parameters
+    save(file_format=False)
+        export the analysis object to a file in the output folder if the output folder 
+        hasn't been created, this will create it
+    export_to_mat()
+        forward fill all nan values in the normalized 490 data and export the resulting
+        array to a .mat file
+    remove_mouse(mouse:str)
+        remove a mouse from the analysis
+    retrieve_excluded(mouse:str)
+        retrieve an excluded mouse from the analysis
+    plot_both()
+        plot the average normalized 490 and 405 signal with error
+    plot_ind_trace(mouse:str)
+        plot the individual trace for a given mouse
+    plot_490()
+        plot the average normalized 490 signal with error
+    bin_plot(binsize:int)
+        bin the data average the data in each bin for each mouse
+    bin_avg(start:int,end:int)
+        average over a specified section of data for each mouse
+    ind_peak_df_f(extrema:str)
+        determine either the min or max ∆f/f and time for each mouse separately
+    mean_peak_df_f(extrema:str)
+        determine either the min or max ∆f/f in the mean signal and identify the values of 
+        the normed 490 at this time point in each individual mouse
+    time_to_half_pk(extrema:str)
+        ...
+
+
 
     """
 
@@ -81,7 +120,7 @@ class fp_analysis:
 
         Returns
         --------
-        self: fp_analysis
+        self: analysis
 
         """
 
@@ -94,12 +133,43 @@ class fp_analysis:
         self.loaded=False
         self.ex=ex
         self.file_loc=file_loc
+        self.file_format=file_format
 
-        if file_format in ['json','npy']:
-            self.file_format=file_format
-        else:
-            raise Exception('Unrecognized File Format')
+    """
+    define a few getter and setter functions for relevant parameters in the 
+    analysis such that when they are updated, everything is recomputed automatically
+    """
+
+    @property
+    def t_endrec(self): return self._t_endrec
+    @t_endrec.setter
+    def t_endrec(self,value):
+        self._t_endrec=value
+        self.recompute()
+
+    @property
+    def ex(self): return self._ex
+    @ex.setter
+    def ex(self,value):
+        self._ex=value
+        self.recompute()
     
+    @property
+    def norm_method(self): return self._norm_method
+    @norm_method.setter
+    def norm_method(self,value):
+        self._norm_method=value
+        self.recompute()
+
+    @property
+    def file_format(self): return self._file_format
+    @file_format.setter
+    def file_format(self,value):
+        if value not in ['json','npy']:
+            raise Exception('Unrecognized File Format')
+        else:
+            self._file_format=value
+
 
     def load_append_save(self,file:Path,t_stims:Dict[str,float]):
         """
@@ -131,6 +201,63 @@ class fp_analysis:
         self.save()
 
 
+    def normalize_downsample(self,rec:mouse_data,plot=True):
+        """
+        call the speicified normalization method and downsample to ~1 Hz. when finished, plot the normalized data.
+        NOTE: the sampling rate from synapse isn't a whole number so we can't necessarilly get exaclt 1Hz but it's close
+
+        Parameters
+        ----------
+        rec: mouse_data
+            the mouse_data object with the raw data to be normalized and downsampled
+        plot: bool,optional
+            whether or not to plot the normalized data at the end
+
+        Returns
+        -------
+        m: mouse_data
+            the normalized downsampled data for the given mouse
+        """
+
+        normed_490, normed_405, start_ind, stim_ind, end_ind = self.norm_method(rec,self.t_endrec)
+        t=rec.t[start_ind:end_ind]-rec.t[stim_ind]
+
+        #resample the data to 1Hz
+        #NOTE: when downsampling we want the stimulus to be at t=0
+        n_stim_ind=np.where(t==0)[0][0]
+        ds=lambda x: np.append( np.flip( x[ n_stim_ind::-math.floor(rec.fs) ][1:] ),
+                                x[ n_stim_ind::math.floor(rec.fs) ]     )
+        ds_490=ds(normed_490)
+        ds_405=ds(normed_405)
+        ds_t=ds(t)
+
+        self.t=ds_t.copy()
+
+        #exclude outliers
+        excl=lambda x: (x>np.mean(x)+self.ex*np.std(x))|(x<np.mean(x)-self.ex*np.std(x))
+        mask=excl(ds_405)
+        
+        ds_t[mask]=np.nan
+        ds_490[mask]=np.nan
+        ds_405[mask]=np.nan
+
+
+        #create a new mouse_data object for the cleaned data
+        m=mouse_data(rec.mouse_id,ds_490,ds_405,1)
+        m.t=ds_t #overwrite the default time vectors generated by the init fcn
+        m.t_stim=rec.t_stim
+
+        #plot the data
+        if plot:
+            py.plot(m.t,m.F490,'g',linewidth=0.5)
+            py.plot(m.t,m.F405,'r',linewidth=0.5)
+            py.axvline(x=0, c='k',ls='--', alpha=0.5)
+            py.xlabel('Time Relative to Stimulus (s)')
+            py.ylabel(r'$\frac{\Delta F}{F}$ (%)')
+            py.show()
+
+        return m
+
     def compute_means(self):
         """
         compute the average and standard error accross recordings
@@ -160,44 +287,69 @@ class fp_analysis:
             self.err_405=err_405.data
         else:
             self.err_405=err_405
-
-
-    def update_params(self,t_endrec=False,norm_method=False,ex=False,file_format=False):
+    
+    def recompute(self):
         """
-        update parameters set in the beginning of the analysis and recompute
+        re-crop/normalize all data and recompute the mean signal after updating parameters
+        """
+        if hasattr(self,'excluded_normed') and hasattr(self,'normed_data'):
+            if (len(self.normed_data)+len(self.excluded_normed))>0:
+                print('recomputing...')
+                for i in range(len(self.raw_data)):
+                    self.normed_data[i]=self.normalize_downsample(self.raw_data[i],plot=False)
+                    
+                
+                if len(self.excluded_raw)>0:
+                    for i in range(len(self.excluded_raw)):
+                        self.excluded_normed[i]=self.normalize_downsample(self.excluded_raw[i],plot=False)
+            
+                self.compute_means()
+                print('successful')
+
+    def save(self,file_format=False):
+        """
+        export the analysis object to a file in the output folder
+        if the output folder hasn't been created, this will create it
 
         Parameters
         ----------
-        t_endrec: float, optional
-            see Attributes
-        norm_method: func, optional
-            see Attributes
-        ex: float, optional
-            see Attributes
         file_format: str, optional
             see Attributes
+
         """
-
-        if not (t_endrec or norm_method or ex or file_format):
+        if not self.loaded:
+            print('Must have usable data loaded in the analysis first!')
             return
-        
-        self.t_endrec = t_endrec if t_endrec else self.t_endrec
-        self.norm_method= norm_method if norm_method else self.norm_method
-        self.ex=ex if ex else self.ex
-
-        if file_format in ['json','npy']:
-            self.file_format=file_format
-
-        
-        for i in range(len(self.raw_data)):
-            self.normed_data[i]=self.normalize_downsample(self.raw_data[i],plot=false)
             
-        if hasattr(self,'excluded_raw'):
-            if len(self.excluded_raw)>0:
-                for i in range(len(self.excluded_raw)):
-                    self.excluded_normed[i]=self.normalize_downsample(self.excluded_raw[i],plot=False)
+        if not os.path.exists(self.file_loc): os.mkdir(self.file_loc)
+        ftype= self.file_format if not file_format else file_format
 
-        self.compute_means()
+        if ftype not in ['npy','json']:
+            raise Exception('Unrecognized file format!')
+
+        if ftype=='json':
+            with open(os.path.join(self.file_loc,'analysis_'+'_'.join([r.mouse_id for r in self.raw_data])+'.json'),'w') as f:
+                print('saving the analysis...')
+                json.dump(self.__dict__,f,cls=Encoder)
+                print('save successful!')
+        elif ftype=='npy':
+            np.save(os.path.join(self.file_loc,'analysis_'+'_'.join([r.mouse_id for r in self.raw_data])+'.npy'),self)
+            print('save successful!')
+    
+    def export_to_mat(self):
+        """
+        forward fill all nan values in the normalized 490 data and export
+        the resulting array to a .mat file
+        """
+        data=self.all_490.copy()
+        if np.isnan(data).any():
+            #check if there are nans and forward fill them first
+            r,c=np.where(np.isnan(data))
+            for i,j in zip(r,c):
+                data[i,j]=data[i,j-1] if j>0 else 0
+        
+        savemat(os.path.join(self.file_loc,'analysis_'+'_'.join([r.mouse_id for r in self.raw_data])+'.mat'),{'data':data})
+
 
     def remove_mouse(self,mouse:str):
         """
@@ -249,106 +401,6 @@ class fp_analysis:
         self.loaded=True
         self.compute_means()
 
-    def save(self,file_format=False):
-        """
-        export the analysis object to a file in the output folder
-        if the output folder hasn't been created, this will create it
-
-        Parameters
-        ----------
-        file_format: str, optional
-            see Attributes
-
-        """
-        if not self.loaded:
-            print('Must have usable data loaded in the analysis first!')
-            return
-            
-        if not os.path.exists(self.file_loc): os.mkdir(self.file_loc)
-        ftype= self.file_format if not file_format else file_format
-
-        if ftype not in ['npy','json']:
-            raise Exception('Unrecognized file format!')
-
-        if ftype=='json':
-            with open(os.path.join(self.file_loc,'analysis_'+'_'.join([r.mouse_id for r in self.raw_data])+'.json'),'w') as f:
-                print('saving the analysis...')
-                json.dump(self.__dict__,f,cls=Encoder)
-                print('save successful!')
-        elif ftype=='npy':
-            np.save(os.path.join(self.file_loc,'analysis_'+'_'.join([r.mouse_id for r in self.raw_data])+'.npy'),self)
-            print('save successful!')
-    
-    def export_to_mat(self):
-        """
-        forward fill all nan values in the normalized 490 data and export
-        the resulting array to a .mat file
-        """
-        data=self.all_490.copy()
-        if np.isnan(data).any():
-            #check if there are nans and forward fill them first
-            r,c=np.where(np.isnan(data))
-            for i,j in zip(r,c):
-                data[i,j]=data[i,j-1] if j>0 else 0
-        
-        savemat(os.path.join(self.file_loc,'analysis_'+'_'.join([r.mouse_id for r in self.raw_data])+'.mat'),{'data':data})
-
-
-    def normalize_downsample(self,rec:mouse_data,plot=True):
-        """
-        call the speicified normalization method and downsample to ~1 Hz. when finished, plot the normalized data.
-        NOTE: the sampling rate from synapse isn't a whole number so we can't necessarilly get exaclt 1Hz but it's close
-
-        Parameters
-        ----------
-        rec: mouse_data
-            the mouse_data object with the raw data to be normalized and downsampled
-        plot: bool,optional
-            whether or not to plot the normalized data at the end
-
-        Returns
-        -------
-        m: mouse_data
-            the normalized downsampled data for the given mouse
-        """
-        normed_490, normed_405, start_ind, stim_ind, end_ind = self.norm_method(rec,self.t_endrec)
-        t=rec.t[start_ind:end_ind]-rec.t[stim_ind]
-
-        #resample the data to 1Hz
-        #NOTE: when downsampling we want the stimulus to be at t=0
-        n_stim_ind=np.where(t==0)[0][0]
-        ds=lambda x: np.append( np.flip( x[ n_stim_ind::-math.floor(rec.fs) ][1:] ),
-                                x[ n_stim_ind::math.floor(rec.fs) ]     )
-        ds_490=ds(normed_490)
-        ds_405=ds(normed_405)
-        ds_t=ds(t)
-
-        self.t=ds_t.copy()
-
-        #exclude outliers
-        excl=lambda x: (x>np.mean(x)+self.ex*np.std(x))|(x<np.mean(x)-self.ex*np.std(x))
-        mask=excl(ds_405)
-        
-        ds_t[mask]=np.nan
-        ds_490[mask]=np.nan
-        ds_405[mask]=np.nan
-
-
-        #create a new mouse_data object for the cleaned data
-        m=mouse_data(rec.mouse_id,ds_490,ds_405,1)
-        m.t=ds_t #overwrite the default time vectors generated by the init fcn
-        m.t_stim=rec.t_stim
-
-        #plot the data
-        if plot:
-            py.plot(m.t,m.F490,'g',linewidth=0.5)
-            py.plot(m.t,m.F405,'r',linewidth=0.5)
-            py.axvline(x=0, c='k',ls='--', alpha=0.5)
-            py.xlabel('Time Relative to Stimulus (s)')
-            py.ylabel(r'$\frac{\Delta F}{F}$ (%)')
-            py.show()
-
-        return m
 
     def plot_both(self):
         """
@@ -371,7 +423,15 @@ class fp_analysis:
 
         py.show()
 
-    def plot_ind_trace(self,mouse):
+    def plot_ind_trace(self,mouse:mouse_data):
+        """
+        plot the individual trace for a given mouse
+
+        Parameters
+        ----------
+        mouse:mouse_data
+            mouse to plot
+        """
         raise NotImplementedError
         
     def plot_490(self):
@@ -626,7 +686,7 @@ class fp_analysis:
         raise NotImplementedError
 
 
-class loaded_analysis(fp_analysis):
+class loaded_analysis(analysis):
     """a class for analyses loaded from json files"""
     def __init__(self,fpath):
         """
@@ -639,7 +699,7 @@ class loaded_analysis(fp_analysis):
         if d['norm_method']=='function':
             print('WARNING: No normalization  method is specified in this loaded analysis! Please update analysis parameters before adding any data.')
         else:
-            d['norm_method']=getattr(fp_analysis,d['norm_method']['function'])
+            d['norm_method']=getattr(analysis,d['norm_method']['function'])
             
         for key in d:
             if isinstance(d[key],list):
@@ -659,7 +719,7 @@ def load_analysis(fpath):
 
     Returns
     -------
-    a: fp_analysis
+    a: analysis
         the analysis object
     """
     fpath=Path(fpath).resolve()
