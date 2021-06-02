@@ -64,38 +64,53 @@ class analysis:
     -------
     load_append_save(file:Path,t_stims:Dict[str,float])
         load, normalize and add data to the analysis. when finished, save the analysis
+
     normalize_downsample(rec:mouse_data,plot=True)
         call the speicified normalization method and downsample to ~1 Hz. when finished,
         plot the normalized data.
+
     compute_means()
         compute the average and standard error accross recordings
+
     recompute()
         re-crop/normalize all data and recompute the mean signal after updating parameters
+
     save(file_format=False)
         export the analysis object to a file in the output folder if the output folder 
         hasn't been created, this will create it
+
     export_to_mat()
         forward fill all nan values in the normalized 490 data and export the resulting
         array to a .mat file
+
     remove_mouse(mouse:str)
         remove a mouse from the analysis
+
     retrieve_excluded(mouse:str)
         retrieve an excluded mouse from the analysis
+
     plot_both()
         plot the average normalized 490 and 405 signal with error
+
     plot_ind_trace(mouse:str)
         plot the individual trace for a given mouse
+
     plot_490()
         plot the average normalized 490 signal with error
+
     bin_plot(binsize:int)
         bin the data average the data in each bin for each mouse
+
     bin_avg(start:int,end:int)
         average over a specified section of data for each mouse
+
     ind_peak_df_f(extrema:str)
         determine either the min or max ∆f/f and time for each mouse separately
+
     mean_peak_df_f(extrema:str)
         determine either the min or max ∆f/f in the mean signal and identify the values of 
         the normed 490 at this time point in each individual mouse
+
     time_to_half_pk(extrema:str)
         ...
 
@@ -103,7 +118,7 @@ class analysis:
 
     """
 
-    def __init__(self, norm_method,t_endrec,ex=4,file_format='npy',file_loc='analyses'):
+    def __init__(self, norm_method,t_endrec,t_prestim=300,ex=4,file_format='npy',file_loc='analyses'):
         """
         Parameters
         ----------
@@ -134,6 +149,7 @@ class analysis:
         self.ex=ex
         self.file_loc=file_loc
         self.file_format=file_format
+        self.t_prestim=t_prestim
 
     """
     define a few getter and setter functions for relevant parameters in the 
@@ -145,6 +161,13 @@ class analysis:
     @t_endrec.setter
     def t_endrec(self,value):
         self._t_endrec=value
+        self.recompute()
+    
+    @property
+    def t_prestim(self): return self._t_prestim
+    @t_prestim.setter
+    def t_prestim(self,value):
+        self._t_prestim=value
         self.recompute()
 
     @property
@@ -188,10 +211,11 @@ class analysis:
                 print('loading data from file...')
                 d=json.load(f,object_hook=hook)
         elif file.suffix=='.npy':
-              d=np.load(file,allow_pickle=True).tolist()
+            print('loading data from file...')
+            d=np.load(file,allow_pickle=True).tolist()
         else:
             raise Exception('Unrecognized File Format!')
-        for i in range(len(d)):
+        for i in range(len(d)): #normalize/downsample each mouse's data then add to the analysis
             d[i].t_stim=t_stims[d[i].mouse_id]
             m=self.normalize_downsample(d[i],plot=False)
             self.raw_data.append(d[i])
@@ -219,8 +243,8 @@ class analysis:
             the normalized downsampled data for the given mouse
         """
 
-        normed_490, normed_405, start_ind, stim_ind, end_ind = self.norm_method(rec,self.t_endrec)
-        t=rec.t[start_ind:end_ind]-rec.t[stim_ind]
+        normed_490, normed_405, start_ind, stim_ind, end_ind = self.norm_method(rec,self.t_endrec,self.t_prestim)
+        t=rec.t[start_ind:end_ind]-rec.t[stim_ind] #center at the stimulus
 
         #resample the data to 1Hz
         #NOTE: when downsampling we want the stimulus to be at t=0
@@ -473,7 +497,7 @@ class analysis:
 
         #TODO: account for binsizes that aren't evenly divisible
 
-        bins=np.append(-300,self.t[self.stim_ind-binsize::binsize])
+        bins=np.append(-self.t_prestim,self.t[self.stim_ind-binsize::binsize])
         binsize_act=bins[-1]-bins[-2]
 
         added=False
@@ -505,7 +529,7 @@ class analysis:
         binned=pd.pivot_table(all_490,values=range(len(self.normed_data)),index='bins', aggfunc=nantrapz)
         binned['bins']=bins[0:-1]
         binned['binsizes']=bins[1:]-bins[0:-1]
-        binned=binned[binned.bins!=-300] #remove the first bin
+        binned=binned[binned.bins!=-self.t_prestim] #remove the first bin
         binned=binned[:-1] if added else binned #only include bins of the appropriate size (i.e. get rid the end bin if needed)
 
         print(list(binned.columns))
@@ -601,9 +625,9 @@ class analysis:
 
 
         if extrema=='max':
-            pks_ind=300+np.nanargmax(self.all_490[:,300:],axis=1)
+            pks_ind=self.t_prestim+np.nanargmax(self.all_490[:,self.t_prestim:],axis=1)
         elif extrema=='min':
-            pks_ind=300+np.nanargmin(self.all_490[:,300:],axis=1)
+            pks_ind=self.t_prestim+np.nanargmin(self.all_490[:,self.t_prestim:],axis=1)
         else:
             print('Unrecognized extrema!')
 
@@ -656,7 +680,7 @@ class analysis:
             print('Must have usable data loaded in the analysis first!')
             return
 
-        pk_ind= 300+np.nanargmax(self.mean_490[300:]) if extrema=='max' else 300+np.nanargmin(self.mean_490[300:])
+        pk_ind= self.t_prestim+np.nanargmax(self.mean_490[self.t_prestim:]) if extrema=='max' else self.t_prestim+np.nanargmin(self.mean_490[self.t_prestim:])
         if self.all_490.shape[-1]-20<pk_ind:
                 pk_ind-=10
                 print(f'Warning! {extrema} is on the edge of the recording')

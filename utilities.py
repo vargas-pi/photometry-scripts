@@ -38,7 +38,7 @@ def hook(obj):
     return obj
 
 
-def select_data(data:mouse_data,t_endrec):
+def select_data(data:mouse_data,t_endrec,t_prestim):
     """
     select the data that will be used in the analysis'
     
@@ -69,7 +69,7 @@ def select_data(data:mouse_data,t_endrec):
         cropped 405 data
     """
 
-    start_ind=math.ceil((data.t_stim-300)*data.fs)+1
+    start_ind=math.ceil((data.t_stim-t_prestim)*data.fs)+1
     stim_ind=math.ceil((data.t_stim)*data.fs)+1
     end_ind=math.ceil((data.t_stim+t_endrec)*data.fs)+1
 
@@ -81,7 +81,7 @@ def select_data(data:mouse_data,t_endrec):
 
     return (start_ind, stim_ind, end_ind, pre_stim_490, pre_stim_405, sel_490, sel_405)
 
-def norm_to_median_pre_stim(data:mouse_data,t_endrec):
+def norm_to_median_pre_stim(data:mouse_data,t_endrec,t_prestim):
     """
     normalize to the median of the data 5 minutes before the stimulus
 
@@ -110,7 +110,7 @@ def norm_to_median_pre_stim(data:mouse_data,t_endrec):
         to the raw data
     """
 
-    start_ind, stim_ind, end_ind, pre_stim_490, pre_stim_405, sel_490, sel_405=select_data(data,t_endrec)
+    start_ind, stim_ind, end_ind, pre_stim_490, pre_stim_405, sel_490, sel_405=select_data(data,t_endrec,t_prestim)
 
     #compute the baseline by taking the median of the 5 miutes pre-stimu data
     f490_baseline=np.median(pre_stim_490)
@@ -121,7 +121,7 @@ def norm_to_median_pre_stim(data:mouse_data,t_endrec):
     normed_405=(sel_405-f405_baseline)/f405_baseline
     return (normed_490,normed_405, start_ind, stim_ind, end_ind)
 
-def norm_to_405(data:mouse_data,t_endrec):
+def norm_to_405(data:mouse_data,t_endrec,t_prestim):
     """
     normalize to a linear fit of the 405 data'
 
@@ -149,7 +149,7 @@ def norm_to_405(data:mouse_data,t_endrec):
         index of the end of the cropped region of the recording relative
         to the raw data
     """
-    start_ind, stim_ind, end_ind, pre_stim_490, pre_stim_405, sel_490, sel_405=select_data(data,t_endrec)
+    start_ind, stim_ind, end_ind, pre_stim_490, pre_stim_405, sel_490, sel_405=select_data(data,t_endrec,t_prestim)
 
     x=np.arange(len(sel_405))
     m, b, _, _, _ = st.linregress(x, sel_405)
@@ -157,12 +157,12 @@ def norm_to_405(data:mouse_data,t_endrec):
     fit_405=m*x+b
 
     normed_490=100*np.divide(sel_490-fit_405, fit_405)
-    normed_490-=np.median(normed_490[0:300])
+    normed_490-=np.median(normed_490[0:t_prestim])
 
     normed_405=100*np.divide(sel_405-fit_405, fit_405)
-    normed_405-=np.median(normed_405[0:300])
+    normed_405-=np.median(normed_405[0:t_prestim])
     
     return (normed_490,normed_405, start_ind, stim_ind, end_ind)
 
-def zscore(data:mouse_data):
+def zscore(data:mouse_data,t_endrec,t_prestim):
     pass 

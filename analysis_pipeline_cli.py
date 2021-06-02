@@ -28,12 +28,22 @@ else:
     norm_method=norm_methods[int(norm_method)-1]
 
     spec_exc_crit=input('Would you like to specify the exclusion criteria? (i.e. # of st devs above or below the mean of the data beyond which to exclude) [y/n]: ')
+    
+
 
     if spec_exc_crit.lower() in ['n','no']:
-        a=analysis(norm_method,t_endrec)
+        ex=4
     else:
         ex=int(input('How many st. devs above or below the mean would you like to define as the limits of the data?: '))
-        a=analysis(norm_method,t_endrec,ex=ex)
+    
+    spec_prestim=input('Would you like to specify the amount of time pre-stimulus to keep (the default will be 5 minutes)?[y/n]: ')
+
+    if spec_prestim.lower() in ['n','no']:
+        t_prestim=300
+    else:
+        t_prestim=int(input('How many seconds pre-stimulus would you like to keep?: '))
+    
+    a=analysis(norm_method,t_endrec,ex=ex,t_prestim=t_prestim)
 
 def load_append_save_cli():
 

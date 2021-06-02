@@ -8,8 +8,20 @@ from threading import Thread, Event
 import time
 from collections import Callable
 
-    
+#NOTE: in general this scriptcan probably be updated to accomodate varible numbers of mice/lines. something to look into
 def stream_plot(ylim:list,mouse1=None,mouse2=None):
+    """
+    stream data from Synapse and plot it real time
+
+    Parameters
+    ----------
+    ylim: list
+        a list of length two with the initial lower and upper y bounds of the plot respectively
+    mouse1: str,optional
+        an identifier for the mouse on line 1 if there is a mouse on line 1
+    mouse2: str,optional
+        an identifier for the mouse on line 2 if there is a mouse on line 2
+    """
     try:
         syn=tdt.SynapseAPI('localhost')
     except ConnectionRefusedError:
@@ -25,6 +37,17 @@ def stream_plot(ylim:list,mouse1=None,mouse2=None):
         mice_data[i].updated=False
         
     def stream(start,green_light):
+        """
+        stream data from Synapse on a separate thread
+        
+        Parameters
+        ----------
+        start: datetime.datetime
+            start time of the stream
+        green_light: threading.Event
+            a flag indicating whether or not to continue streaming. this is set to True before the start of the stream
+            and will be cleared when it is time to stop
+        """
         while green_light.is_set():
             
             for i in range(len(mice_data)):
@@ -37,6 +60,7 @@ def stream_plot(ylim:list,mouse1=None,mouse2=None):
                 mice_data[i].F405.append(new_405)
                 mice_data[i].t=np.append(mice_data[i].t,new_t)
 
+                #update the axis limits if the data exceeds them
                 if new_t>=mice_data[i].limt[1]:
                     mice_data[i].limt[1]+=60
                     mice_data[i].updated=True
@@ -64,10 +88,12 @@ def stream_plot(ylim:list,mouse1=None,mouse2=None):
     stream_thread.start()
 
     try:
+        """update the plot in realtime"""
         fig , lines, ax= initialize_plots(mice_data,ylim)
         def animate(i):
             for m in range(len(mice_data)):
                 if mice_data[m].updated:
+                    #if the stream thread has detected a need to update the axis limits, update them accordingly
                     mice_data[m].updated=False
                     if len(mice_data)==2:
                         ax[0,m].set_ylim(mice_data[m].lim490)
@@ -88,6 +114,7 @@ def stream_plot(ylim:list,mouse1=None,mouse2=None):
         while True:
             time.sleep(.1)
     except KeyboardInterrupt:
+        #if there is a keyboard interrupt stop the stream
         print('stopping the stream...')
         green_light.clear()
         stream_thread.join()
@@ -96,6 +123,29 @@ def stream_plot(ylim:list,mouse1=None,mouse2=None):
         
 
 def open_save(path,format='npy',mouse1=None,mouse2=None,m1_490='x19a',m1_405='x15a',m2_490='x29B',m2_405='x25B'):
+    """
+    pull and save the data produced from Synapse in a format we can read in python
+
+    Parameters
+    ----------
+    path: str
+        path to the directory with the data
+    format: str,optional
+        file format to save the data to. this should be either 'npy' or 'json' (the default and strongly recommended option is 'npy')
+    mouse1: str,optional
+        an identifier for the mouse on line 1
+    mouse2: str,optional
+        an identifier for the mouse on line 2
+    m1_490: str,optional
+        the name of the 490 channel for line 1
+    m1_405: str,optional
+        the name of the 405 channel for line 1
+    m2_490: str,optional
+        the name of the 490 channel for line 2
+    m2_405: str,optional
+        the name of the 405 channel for line 2
+
+    """
     raw_data=tdt.read_block(path)
     print('data pulled!')
 
@@ -122,6 +172,17 @@ def open_save(path,format='npy',mouse1=None,mouse2=None,m1_490='x19a',m1_405='x1
     return data
 
 def update_plots(d,lines):
+    """
+    update plotting data
+
+    Parameters
+    ----------
+    d: list
+        list of mouse data objects with the streamed data
+    lines: Line2d
+        line objects to be updated from the initialized plots 
+    
+    """
     u00=min(len(d[0].t),len(d[0].F490))
     u10=min(len(d[0].t),len(d[0].F405))
     if len(d)==2:
@@ -137,6 +198,25 @@ def update_plots(d,lines):
         lines[1].set_data(d[0].t[:u10],8*np.array(d[0].F405[:u10]))
 
 def initialize_plots(d,ylim:list):
+    """
+    initialize plots for animation
+
+    Parameters
+    ----------
+    d: list
+        list of mouse data objects with the streamed data
+    ylim: list
+        a list of length two with the initial lower and upper y bounds of the plot respectively
+    
+    Returns
+    -------
+    fig: Figure
+        the figure
+    lines: list
+        list of Line2d objects to be updated as more data is streamed
+    ax: Axes
+        the axes objects that lines are plotted on
+    """
     fig , ax = py.subplots( *([2]*len(d)) )
 
     if len(d)==2:
