@@ -122,7 +122,7 @@ def stream_plot(ylim:list,mouse1=None,mouse2=None):
 
         
 
-def open_save(path,format='npy',mouse1=None,mouse2=None,m1_490='x19a',m1_405='x15a',m2_490='x29B',m2_405='x25B'):
+def open_save(path,format='npy',mouse1=None,mouse2=None,m1_490='x19A',m1_405='x15A',m2_490='x29B',m2_405='x25B'):
     """
     pull and save the data produced from Synapse in a format we can read in python
 
@@ -151,10 +151,10 @@ def open_save(path,format='npy',mouse1=None,mouse2=None,m1_490='x19a',m1_405='x1
 
     data=[]
     if mouse1:
-        m1=mouse_data(mouse1, raw_data.streams[m1_490].data, raw_data.streams[m1_405].data, raw_data.streams[m1_490].fs) #create an instance of the data class
+        m1=mouse_data(mouse1, raw_data.streams[m1_490].data, raw_data.streams[m1_405].data, raw_data.streams[m1_490].fs,t_start=raw_data.info.start_date) #create an instance of the data class
         data.append(m1)
     if mouse2:
-        m2=mouse_data(mouse2, raw_data.streams[m2_490].data, raw_data.streams[m2_405].data, raw_data.streams[m2_490].fs)
+        m2=mouse_data(mouse2, raw_data.streams[m2_490].data, raw_data.streams[m2_405].data, raw_data.streams[m2_490].fs,t_start=raw_data.info.start_date)
         data.append(m2)
 
     print('saving data...')
