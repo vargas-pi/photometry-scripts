@@ -87,6 +87,7 @@ def update_params_cli():
     print('2. Normalization method')
     print('3. Exclusion criteria')
     print('4. Change File Format')
+    print('5. Change Pre-Stimulus Time')
     print('')
     choice=input('(input the number of the desired choice):')
 
@@ -98,6 +99,8 @@ def update_params_cli():
         a.ex=int(input( 'How many st. devs above or below the mean would you like to define as the limits of the data?: ' ))
     elif choice=='4':
         a.file_format=['npy','json'][-1+int(input( 'What file format would you like? 1. npy, 2. json [1/2]: ' ))]
+    elif choice=='5':
+        a.t_prestim=int(input( 'Enter the desired pre-stimulus time in seconds:' ))
         
 
 def remove_mouse_cli():

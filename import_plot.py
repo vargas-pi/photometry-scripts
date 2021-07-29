@@ -8,7 +8,7 @@ from threading import Thread, Event
 import time
 from collections import Callable
 
-#NOTE: in general this scriptcan probably be updated to accomodate varible numbers of mice/lines. something to look into
+#NOTE: in general this script can probably be updated to accomodate varible numbers of mice/lines. something to look into
 def stream_plot(ylim:list,mouse1=None,mouse2=None):
     """
     stream data from Synapse and plot it real time

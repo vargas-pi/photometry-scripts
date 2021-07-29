@@ -9,7 +9,7 @@ output_filename='exported_data'
 
 class mouse_data:
      """class to store data we want to keep"""
-     def __init__(self,mouse_id,F490,F405,fs,t_start=None,n=None,t=np.array([]),t_stamps=np.array([]),t_stim=None):
+     def __init__(self,mouse_id,F490,F405,fs,t_start=None,n=None,t=np.array([]),t_stim=None):
          self.mouse_id=mouse_id
          self.F490=F490
          self.F405=F405
