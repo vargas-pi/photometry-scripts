@@ -17,7 +17,7 @@ norm_methods=[norm_to_median_pre_stim, norm_to_405]
 
 if ans==1:
     #load in the analysis from the specified file in the output folder
-        fname=input('Please enter the name an exported analysis file: ')
+        fname=input('Please enter the path to an exported analysis file: ')
         a=load_analysis(fname)
 else:
     #ask for necessary parameters for the analysis
@@ -167,9 +167,8 @@ while running:
         '11':update_params_cli,
         '12':a.export_to_mat,
         }
-        
-    if ans=='13':
-        running=False
-    else:
+    
+    try:
         tasks[ans]()
-
+    except KeyError:
+        running=False
