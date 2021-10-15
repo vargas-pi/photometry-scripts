@@ -79,6 +79,7 @@ def load_append_save_cli():
         if cont in ['n','no'] :
             appending=False
     a.compute_means()
+    a.save()
 
 def update_params_cli():
 
@@ -110,22 +111,27 @@ def retrieve_excluded_cli():
     a.retrieve_excluded(input("Enter the id of the mouse you'd like to retrieve: "))
 
 def bin_plot_cli():
-    a.bin_plot(int(input('How big, in seconds, would you like the bins: ')))
+    a.bin_plot(int(input('How big, in seconds, would you like the bins: ')),save=True)
+
+def bin_auc_cli():
+    start=int(input('Enter the beginning of the period in seconds relative to the stimulus onset: '))
+    end=int(input('Enter the end of the period: '))
+    a.bin_auc(start,end)
 
 def bin_avg_cli():
     start=int(input('Enter the beginning of the period to average in seconds relative to the stimulus onset: '))
     end=int(input('Enter the end of the period: '))
-    a.bin_avg(start,end)
+    a.bin_avg(start,end,save=True)
 
 def ind_peak_df_f_cli():
     ans=int(input('Would you like to compute the 1. max or 2. min? [1/2] '))-1
     opts=['max','min']
-    a.ind_peak_df_f(opts[ans])
+    a.ind_peak_df_f(opts[ans],save=True)
 
 def mean_peak_df_f_cli():
     ans=int(input('Would you like to compute the 1. max or 2. min? [1/2] '))-1
     opts=['max','min']
-    a.mean_peak_df_f(opts[ans])
+    a.mean_peak_df_f(opts[ans],save=True)
 
 running=True
 if not a.loaded:
@@ -142,12 +148,13 @@ while running:
     print('5. find the peak ∆f/f (min/max) for individual mice')
     print('6. find the peak ∆f/f (min/max) for individual mice at the location of the peak in the mean signal')
     print('7. find the average value over a specified portion of data')
-    print('8. bin and plot the data')
-    print('9. remove a mouse from this analysis')
-    print('10. retrieve an excluded mouse from this analysis')
-    print('11. update the parameters of this analysis')
-    print('12. export normalized 490 data to .mat')
-    print('13. exit')
+    print('8. find the area under the curve for a specified portion of data')
+    print('9. bin and plot the data')
+    print('10. remove a mouse from this analysis')
+    print('11. retrieve an excluded mouse from this analysis')
+    print('12. update the parameters of this analysis')
+    print('13. export normalized 490 data to .mat')
+    print('14. exit')
     print('')
     ans=input('(input the number of the desired task): ')
 
@@ -161,11 +168,12 @@ while running:
         '5':ind_peak_df_f_cli,
         '6':mean_peak_df_f_cli,
         '7':bin_avg_cli,
-        '8':bin_plot_cli,
-        '9':remove_mouse_cli,
-        '10':retrieve_excluded_cli,
-        '11':update_params_cli,
-        '12':a.export_to_mat,
+        '8':bin_auc_cli,
+        '9':bin_plot_cli,
+        '10':remove_mouse_cli,
+        '11':retrieve_excluded_cli,
+        '12':update_params_cli,
+        '13':a.export_to_mat,
         }
     
     try:

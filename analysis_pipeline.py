@@ -98,11 +98,17 @@ class analysis:
     plot_490()
         plot the average normalized 490 signal with error
 
-    bin_plot(binsize:int)
+    bin_data(binsize:int,save:bool)
         bin the data average the data in each bin for each mouse
+
+    bin_plot(binsize:int,save:bool)
+        bin the data and plot it
 
     bin_avg(start:int,end:int)
         average over a specified section of data for each mouse
+
+    bin_auc(start:int,end:int)
+        area under the curve for a specified section of data for each mouse
 
     ind_peak_df_f(extrema:str)
         determine either the min or max ∆f/f and time for each mouse separately
@@ -275,8 +281,8 @@ class analysis:
 
         #plot the data
         if plot:
-            py.plot(m.t,m.F490,'g',linewidth=0.5)
-            py.plot(m.t,m.F405,'r',linewidth=0.5)
+            py.plot(m.t,100*m.F490,'g',linewidth=0.5)
+            py.plot(m.t,100*m.F405,'r',linewidth=0.5)
             py.axvline(x=0, c='k',ls='--', alpha=0.5)
             py.xlabel('Time Relative to Stimulus (s)')
             py.ylabel(r'$\frac{\Delta F}{F}$ (%)')
@@ -291,6 +297,7 @@ class analysis:
         if not self.loaded:
             print('no data has been loaded')
             return
+        
         self.all_490=np.array([rec.F490 for rec in self.normed_data])
         self.all_405=np.array([rec.F405 for rec in self.normed_data])
 
@@ -437,12 +444,12 @@ class analysis:
             print('Must have usable data loaded in the analysis first!')
             return
         
-        py.fill_between(self.t, self.mean_490 + self.err_490,
-                        self.mean_490 - self.err_490, color='g',alpha=0.2 )
-        py.fill_between(self.t, self.mean_405 + self.err_405,
-                        self.mean_405 - self.err_405, color='r',alpha=0.2  )
-        py.plot(self.t, self.mean_490 , 'g', linewidth=0.5)
-        py.plot(self.t, self.mean_405, 'r', linewidth=0.5)
+        py.fill_between(self.t, 100*self.mean_490 + 100*self.err_490,
+                        100*(self.mean_490 - self.err_490), color='g',alpha=0.2 )
+        py.fill_between(self.t, 100*(self.mean_405 + self.err_405),
+                        100*(self.mean_405 - self.err_405), color='r',alpha=0.2  )
+        py.plot(self.t, 100*self.mean_490 , 'g', linewidth=0.5)
+        py.plot(self.t, 100*self.mean_405, 'r', linewidth=0.5)
         py.axvline(x=0, c='k',ls='--', alpha=0.5)
         py.xlabel('Time Relative to Stimulus (s)')
         py.ylabel(r'$\frac{\Delta F}{F}$ (%)')
@@ -469,16 +476,43 @@ class analysis:
             print('Must have usable data loaded in the analysis first!')
             return
         
-        py.fill_between(self.t, self.mean_490 + self.err_490,
-                        self.mean_490 - self.err_490, color='g',alpha=0.2 )
-        py.plot(self.t, self.mean_490 , 'g', linewidth=0.5)
+        py.fill_between(self.t, 100*self.mean_490 + 100*self.err_490,
+                        100*(self.mean_490 - self.err_490), color='g',alpha=0.2 )
+        py.plot(self.t, 100*self.mean_490 , 'g', linewidth=0.5)
         py.axvline(x=0, c='k',ls='--', alpha=0.5)
         py.xlabel('Time Relative to Stimulus (s)')
         py.ylabel(r'$\frac{\Delta F}{F}$ (%)')
 
         py.show()
 
-    def bin_plot(self,binsize:int):
+
+    def bin_plot(self,binsize,save=False):
+        """
+        run bin_plot and then plot the data
+
+        Parameters
+        ----------
+        binsize: int
+            bin size in seconds
+        save: bool
+            indicates whether or not to save the dataframe to a csv file for further analysis
+        Returns
+        -------
+        binned: pandas.DataFrame
+            binned data
+        """
+        if not self.loaded:
+            print('Must have usable data loaded in the analysis first!')
+            return
+
+        df=self.bin_data(binsize,save=save)
+        py.errorbar(df.index,100*df['mean'],yerr=100*df['sem'])
+        py.xlabel('Time Relative to Stimulus (s)')
+        py.ylabel(r'$\frac{\Delta F}{F}$ (%)')
+        py.show()
+
+
+    def bin_data(self,binsize,save=False):
         """
         bin the data average the data in each bin for each mouse
 
@@ -497,63 +531,36 @@ class analysis:
             print('Must have usable data loaded in the analysis first!')
             return
 
-        #TODO: account for binsizes that aren't evenly divisible
+        #start the bins in both directions from 0
+        bins=np.append(-np.arange(0, self.t_prestim+binsize, binsize)[:0:-1],
+                    np.arange(0, self.t[-1]+binsize, binsize ))
 
-        bins=np.append(-self.t_prestim,self.t[self.stim_ind-binsize::binsize])
-        binsize_act=bins[-1]-bins[-2]
+        mice=[m.mouse_id for m in self.raw_data] # get the names of the kept mice in the analysis
 
-        added=False
+        df=pd.DataFrame(zip(bins[np.digitize(self.t,bins)-1],*self.all_490),
+                        index=self.t,  columns=['bin start (s)']+mice )
 
-        if self.t[-1] not in bins:
-            bins=np.append(bins,self.t[-1]+1)
-            added=True
-        else:
-            bins[-1]+=1
+        def mean_f_trapz(y):
+            #calculate the mean within each bin by numerical integration
+            y=y.dropna()
+            return np.trapz(y,x=y.index)/(y.index[-1]-y.index[0])
 
-        all_490=pd.DataFrame(self.all_490.transpose())
-        for i in range(len(self.normed_data)): all_490[i]=list(zip(all_490[i],self.t))
-
-
-        all_490['bins']=np.digitize(self.t,bins)
-        all_490['border']=np.append(0,np.array(all_490['bins'][1:])-np.array(all_490['bins'][0:-1])==1)
-
-        borders=all_490[all_490.border==1].copy()
-        borders.bins-=1
-        borders=borders.set_index(borders.index+0.5) #not sure if this is necessary
-
-        all_490.update(borders)
-
-        def nantrapz(x):
-            y,x2=np.array(list(zip(*x)))
-            y,x2=y[~np.isnan(y)],x2[~np.isnan(y)],
-            return np.trapz( y, x=x2 )/(binsize_act)
-
-        binned=pd.pivot_table(all_490,values=range(len(self.normed_data)),index='bins', aggfunc=nantrapz)
-        binned['bins']=bins[0:-1]
-        binned['binsizes']=bins[1:]-bins[0:-1]
-        binned=binned[binned.bins!=-self.t_prestim] #remove the first bin
-        binned=binned[:-1] if added else binned #only include bins of the appropriate size (i.e. get rid the end bin if needed)
-
-        print(list(binned.columns))
-        binned['mean']=binned[range(len(self.normed_data))].mean(axis=1,skipna=True) 
-        binned['sem']=binned[range(len(self.normed_data))].sem(axis=1,skipna=True)
-
-        binned=binned.rename( columns={ i: self.normed_data[i].mouse_id for i in range(len(self.normed_data)) } )
-
-        print(binned)
-
-        py.errorbar(binned['bins'],binned['mean'],yerr=binned['sem'])
-        py.xlabel('Time Relative to Stimulus (s)')
-        py.ylabel(r'$\frac{\Delta F}{F}$ (%)')
-        py.show()
+        df=df.pivot_table(index=['bin start (s)'],values=mice,aggfunc=mean_f_trapz)
+        df['mean']=df[mice].mean(axis=1)
+        df['sem']=df[mice].sem(axis=1)
 
         if not hasattr(self,'binned'):
             self.binned={}
-        self.binned.update({f'{binsize}':binned.to_dict()})
+        self.binned.update({f'{binsize}':df.to_dict()})
 
-        return binned
+        if save:
+            df.to_csv(os.path.join(self.file_loc,f"binned_{binsize}s {'_'.join([r.mouse_id for r in self.raw_data])}.csv"))
+        
+            
+        return df
 
-    def bin_avg(self,start:int,end:int):
+
+    def bin_avg(self,start:int,end:int,save=False):
         """
         average over a specified section of data for each mouse
 
@@ -599,13 +606,67 @@ class analysis:
                 self.avgs={}
             self.avgs.update({f'_{start}_{end}':avg_dict})
             
-            
+            if save:
+                df=pd.DataFrame([avg_dict],index=['Mean ∆F/F']).T
+                df.to_csv(os.path.join(self.file_loc,f"avg_{start}s_{end}s_{'_'.join([r.mouse_id for r in self.raw_data])}.csv"))
+
         except IndexError:
             print('Time stamps are outside the scope of the analysis! Choose a different start and end time or restart the analysis with a different t_endrec.')
         
         return avg_dict
     
-    def ind_peak_df_f(self,extrema:str):
+    def bin_auc(self,start:int,end:int,save=False):
+        """
+        area under the curve of a specified section of data for each mouse
+
+        Parameters
+        ----------
+        start: int
+            start time of the bin
+        end: int
+            end time of the bin
+
+        Returns
+        -------
+        avg_dict: Dict[str,float]
+            dictionary pairing each mouse with the avg normed 490 value
+            in the specified bin
+            
+        """
+        if not self.loaded:
+            print('Must have usable data loaded in the analysis first!')
+            return
+
+        try: 
+            y=self.all_490[:,start+self.stim_ind:end+self.stim_ind+1]
+            x=self.t[start+self.stim_ind:end+self.stim_ind+1]
+            mask= ~(np.isnan(y).max(axis=0))
+            y=y[:,mask]
+            x=x[mask]
+
+            aucs=np.trapz(y, x=x,axis=1)
+            auc_dict={}
+            print(' ')
+            for r,auc in zip(self.normed_data,aucs): 
+                auc_dict.update({r.mouse_id:auc})
+                print(f'{r.mouse_id}:{auc}')
+
+            if not hasattr(self,'aucs'):
+                self.aucs={}
+            self.aucs.update({f'_{start}_{end}':auc_dict})
+
+            if save:
+                df=pd.DataFrame([auc_dict],index=['AUC']).T
+                df.to_csv(os.path.join(self.file_loc,f"auc_{start}s_{end}s_{'_'.join([r.mouse_id for r in self.raw_data])}.csv"))
+
+                
+            
+        except IndexError:
+            print('Time stamps are outside the scope of the analysis! Choose a different start and end time or restart the analysis with a different t_endrec.')
+        
+        return auc_dict
+
+    def ind_peak_df_f(self,extrema:str,save=False):
         """
         determine either the min or max ∆f/f and time for each mouse separately
         TODO: we should also be saving the times of the peaks
@@ -644,14 +705,14 @@ class analysis:
         x=self.t[surr_inds.flatten()].reshape((-1,11))
         y= self.all_490[row_inds,surr_inds.flatten()].reshape((-1,11))
 
-
+        #average over a 10 second window around the peaks using numerical integration
         peaks=[np.trapz(y=i[~np.isnan(i)], x=j[~np.isnan(i)])/10 for i,j in zip(y,x)]
 
         pks_dict={}
 
         print('')
         for r,p,l in zip(self.normed_data,peaks,x[:,5].flatten()):
-            pks_dict.update({r.mouse_id:p})
+            pks_dict.update({r.mouse_id:[p,l]})
             print(f'{r.mouse_id}:{p}, at {l}s')
 
         if not hasattr(self,'pks'):
@@ -659,10 +720,14 @@ class analysis:
 
         self.pks.update({f'{extrema}':pks_dict})
 
+        if save:
+            df=pd.DataFrame(pks_dict,index=[f'{extrema} ∆F/F','time (s)']).T
+            df.to_csv(os.path.join(self.file_loc,f"ind_{extrema}_{'_'.join([r.mouse_id for r in self.raw_data])}.csv"))
+
         return pks_dict
 
 
-    def mean_peak_df_f(self,extrema:str):
+    def mean_peak_df_f(self,extrema:str,save=False):
         """
         determine either the min or max ∆f/f in the mean signal and identify the values of the normed 490
         at this time point in each individual mouse
@@ -692,18 +757,23 @@ class analysis:
         mask= ~(np.isnan(y).max(axis=0))
         x,y= x[mask],y[:,mask]
 
+        #average over a 10 second window around the peak using numerical integration
         peak=np.trapz(y,x=x,axis=1)/10
         pks_dict={}
 
         print('')
         for r,p in zip(self.normed_data,peak):
-            pks_dict.update({r.mouse_id:p})
+            pks_dict.update({r.mouse_id:[p,x[5]]})
             print(f'{r.mouse_id}:{p}, at {x[5]}s')
 
         if not hasattr(self,'mean_pks'):
             self.mean_pks={}
 
         self.mean_pks.update({f'{extrema}':pks_dict})
+
+        if save:
+            df=pd.DataFrame(pks_dict,index=[f'{extrema} ∆F/F','time (s)']).T
+            df.to_csv(os.path.join(self.file_loc,f"mean_{extrema}_{'_'.join([r.mouse_id for r in self.raw_data])}.csv"))
 
         return pks_dict
 
