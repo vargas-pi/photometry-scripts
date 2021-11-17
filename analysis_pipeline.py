@@ -1,4 +1,7 @@
-from re import L
+#TODO: i should write something to automate adding data from a bunch of files
+#TODO: need to make sure t_stim can be saved in import plot
+
+
 import matplotlib.pyplot as py
 from utilities import *
 import os
@@ -6,6 +9,7 @@ from scipy import stats as st
 import pandas as pd
 from typing import Dict
 from pathlib import Path
+from copy import deepcopy
 from scipy.io import savemat
 
 
@@ -145,18 +149,22 @@ class analysis:
 
         """
 
+        self.conditions=None
         self.norm_method=norm_method
         self.t_endrec=t_endrec
         self.raw_data= []
-        self.normed_data = []
         self.excluded_raw = []
-        self.excluded_normed = []
         self.loaded=False
         self.ex=ex
         self.file_loc=file_loc
         self.file_format=file_format
         self.t_prestim=t_prestim
 
+        # NOTE: the following properties are no longer used but keeping here
+        # in case of compatibility issues for earlier versions of the code
+        self.stim_ind=None 
+        self.normed_data = []
+        self.excluded_normed = []
     """
     define a few getter and setter functions for relevant parameters in the 
     analysis such that when they are updated, everything is recomputed automatically
@@ -167,28 +175,28 @@ class analysis:
     @t_endrec.setter
     def t_endrec(self,value):
         self._t_endrec=value
-        self.recompute()
+        self.compute()
     
     @property
     def t_prestim(self): return self._t_prestim
     @t_prestim.setter
     def t_prestim(self,value):
         self._t_prestim=value
-        self.recompute()
+        self.compute()
 
     @property
     def ex(self): return self._ex
     @ex.setter
     def ex(self,value):
         self._ex=value
-        self.recompute()
+        self.compute()
     
     @property
     def norm_method(self): return self._norm_method
     @norm_method.setter
     def norm_method(self,value):
         self._norm_method=value
-        self.recompute()
+        self.compute()
 
     @property
     def file_format(self): return self._file_format
@@ -199,8 +207,8 @@ class analysis:
         else:
             self._file_format=value
 
-
-    def load_append_save(self,file:Path,t_stims:Dict[str,float]):
+    
+    def load_append_save(self,file:Path,t_stims:Dict[str,float]=None,conds:Dict[str,float]=None):
         """
         load, normalize and add data to the analysis. when finished, save the analysis
         
@@ -221,15 +229,19 @@ class analysis:
             d=np.load(file,allow_pickle=True).tolist()
         else:
             raise Exception('Unrecognized File Format!')
-        for i in range(len(d)): #normalize/downsample each mouse's data then add to the analysis
-            d[i].t_stim=t_stims[d[i].mouse_id]
-            m=self.normalize_downsample(d[i],plot=False)
-            self.raw_data.append(d[i])
-            self.normed_data.append(m)
-        self.loaded=True
-        self.compute_means()
-        self.save()
 
+        for i in range(len(d)): 
+            if t_stims is not None:
+                d[i].t_stim=t_stims[d[i].mouse_id]
+            elif not hasattr(d[i],'t_stim'):
+                raise NoStimTime
+            #increment the trial number for the given mouse
+            d[i].trial=len(list(filter( lambda x: x==d[i].mouse_id, self.raw_data)))
+        
+        self.raw_data.extend(d)
+        self.recompute()
+        self.loaded=True
+        self.save()
 
     def normalize_downsample(self,rec:mouse_data,plot=True):
         """
@@ -249,8 +261,7 @@ class analysis:
             the normalized downsampled data for the given mouse
         """
 
-        normed_490, normed_405, start_ind, stim_ind, end_ind = self.norm_method(rec,self.t_endrec,self.t_prestim)
-        t=rec.t[start_ind:end_ind]-rec.t[stim_ind] #center at the stimulus
+        normed_490, normed_405, t, start_ind = self.norm_method(rec,self.t_endrec,self.t_prestim)
         #resample the data to 1Hz
         #NOTE: when downsampling we want the stimulus to be at t=0
         n_stim_ind=np.where(t==0)[0][0]
@@ -270,14 +281,14 @@ class analysis:
         ds_490[mask]=np.nan
         ds_405[mask]=np.nan
 
+        m=deepcopy(rec)
+        m.F490, m.F405, m.t, m.t_stim= ds_490, ds_405, ds_t, 0
+
         if hasattr(rec,'t_start'):
             #if we saved the timestamps of this recording, downsample the time stamps as well
             t_start=rec.t_start+rec.t[start_ind]*timedelta(seconds=1)
             #create a new mouse_data object for the cleaned data
-            m=mouse_data(rec.mouse_id,ds_490,ds_405,1,t_start=t_start,t=ds_t,t_stim=rec.t_stim)
-        else:
-            #create a new mouse_data object for the cleaned data
-            m=mouse_data(rec.mouse_id,ds_490,ds_405,1,t=ds_t,t_stim=rec.t_stim)
+            m.t_start=t_start
 
         #plot the data
         if plot:
@@ -290,53 +301,42 @@ class analysis:
 
         return m
 
-    def compute_means(self):
-        """
-        compute the average and standard error accross recordings
-        """
-        if not self.loaded:
-            print('no data has been loaded')
-            return
-        
-        self.all_490=np.array([rec.F490 for rec in self.normed_data])
-        self.all_405=np.array([rec.F405 for rec in self.normed_data])
-
-        self.stim_ind=int(np.where(self.t==0)[0])
-
-        self.mean_490=np.nanmean(self.all_490,axis=0)
-
-        err_490=st.sem(self.all_490,axis=0,nan_policy='omit')
-        if isinstance(err_490,np.ma.core.MaskedArray):
-            err_490.data[err_490.mask]=np.nan
-            self.err_490=err_490.data
-        else:
-            self.err_490=err_490
-
-        self.mean_405=np.nanmean(self.all_405,axis=0)
-
-        err_405=st.sem(self.all_405,axis=0,nan_policy='omit')
-        if isinstance(err_405,np.ma.core.MaskedArray):
-            err_405.data[err_405.mask]=np.nan
-            self.err_405=err_405.data
-        else:
-            self.err_405=err_405
     
-    def recompute(self):
+    def compute(self):
         """
-        re-crop/normalize all data and recompute the mean signal after updating parameters
+        crop/normalize all included raw data and compute the mean signal
         """
-        if hasattr(self,'excluded_normed') and hasattr(self,'normed_data'):
-            if (len(self.normed_data)+len(self.excluded_normed))>0:
+        if hasattr(self,'excluded_normed') and hasattr(self,'normed_data'): #make sure the fields for normed data exist
+            if (len(self.raw_data)+len(self.excluded_raw))>0: #make sure there is data loaded in the analysis (excluded or not)
                 print('recomputing...')
-                for i in range(len(self.raw_data)):
-                    self.normed_data[i]=self.normalize_downsample(self.raw_data[i],plot=False)
-                    
-                
-                if len(self.excluded_raw)>0:
-                    for i in range(len(self.excluded_raw)):
-                        self.excluded_normed[i]=self.normalize_downsample(self.excluded_raw[i],plot=False)
-            
-                self.compute_means()
+
+                #clear the dataframes
+                cols=pd.MultiIndex(levels=[[]]*3,codes=[[]]*3,names=('cond','mouse','trial'))
+                self.all_490=pd.DataFrame([],columns=cols,index=self.t)
+                self.all_405=pd.DataFrame([],columns=cols,index=self.t)
+
+                for i in self.raw_data: #loop through the raw data and redo the normalization/downsampling
+                    m=self.normalize_downsample(i,plot=False)
+                    cond=m.cond if hasattr(m,'cond') else 0
+                    #need to account for data that has not been tagged with trial here
+                    #also need to think about when data should be designated to conditions
+                    self.all_490[cond,m.mouse_id,m.trial]=pd.Series(m.F490,index=m.t)
+                    self.all_405[cond,m.mouse_id,m.trial]=pd.Series(m.F405,index=m.t)
+
+                self.conditions=self.all_490.columns.get_level_values('cond')
+
+                #consolidate dataframe by averaging within mice within condition
+                self.all_490=self.all_490.groupby('cond',axis=1).apply(lambda x: x.groupby('mouse',axis=1).mean())
+                self.all_405=self.all_405.groupby('cond',axis=1).apply(lambda x: x.groupby('mouse',axis=1).mean())
+
+                #calculate mean and standard error for 490
+                self.mean_490=self.all_490.groupby('cond',axis=1).mean()
+                self.err_490=self.all_490.groupby('cond',axis=1).sem()
+
+                #calculate mean and standard error for 405
+                self.mean_405=self.all_405.groupby('cond',axis=1).mean()
+                self.err_405=self.all_405.groupby('cond',axis=1).sem()
+
                 print('successful')
 
     def save(self,file_format=False):
@@ -374,14 +374,18 @@ class analysis:
         forward fill all nan values in the normalized 490 data and export
         the resulting array to a .mat file
         """
-        data=self.all_490.copy()
-        if np.isnan(data).any():
-            #check if there are nans and forward fill them first
-            r,c=np.where(np.isnan(data))
-            for i,j in zip(r,c):
-                data[i,j]=data[i,j-1] if j>0 else 0
+
+        d={}
+        for c in self.all_490.columns.get_level_values('cond'):
+            data=self.all_490[c].values.T
+            if np.isnan(data).any():
+                #check if there are nans and forward fill them first
+                r,c=np.where(np.isnan(data))
+                for i,j in zip(r,c):
+                    data[i,j]=data[i,j-1] if j>0 else 0
+            d.update({f'_{c}':data})
         
-        savemat(os.path.join(self.file_loc,'analysis_'+'_'.join([r.mouse_id for r in self.raw_data])+'.mat'),{'data':data})
+        savemat(os.path.join(self.file_loc,'analysis_'+'_'.join([r.mouse_id for r in self.raw_data])+'.mat'),d)
 
 
     def remove_mouse(self,mouse:str):
@@ -395,22 +399,17 @@ class analysis:
         """
 
         excl_raw=list(filter(lambda x: x.mouse_id==mouse, self.raw_data))
-        excl_norm=list(filter(lambda x: x.mouse_id==mouse, self.normed_data))
 
         if not hasattr(self,'excluded_raw'):
             self.excluded_raw=[]
-            self.excluded_normed=[]
-        
+
         self.excluded_raw.extend(excl_raw)
-        self.excluded_normed.extend(excl_norm)
-        
         self.raw_data=list(filter(lambda x: x.mouse_id!=mouse, self.raw_data))
-        self.normed_data=list(filter(lambda x: x.mouse_id!=mouse, self.normed_data))
 
         if len(self.raw_data)==0:
             self.loaded=False
-
-        self.compute_means()
+            
+        self.compute()
 
     def retrieve_excluded(self,mouse:str):
         """
@@ -426,13 +425,11 @@ class analysis:
             return
 
         ret_raw=list(filter(lambda x: x.mouse_id==mouse, self.excluded_raw))
-        ret_norm=list(filter(lambda x: x.mouse_id==mouse, self.excluded_normed))
         self.raw_data.extend(ret_raw)
-        self.normed_data.extend(ret_norm)
         self.excluded_raw=list(filter(lambda x: x.mouse_id!=mouse, self.excluded_raw))
-        self.excluded_normed=list(filter(lambda x: x.mouse_id!=mouse, self.excluded_normed))
         self.loaded=True
-        self.compute_means()
+
+        self.compute()
 
 
     def plot_both(self):
@@ -444,12 +441,13 @@ class analysis:
             print('Must have usable data loaded in the analysis first!')
             return
         
-        py.fill_between(self.t, 100*self.mean_490 + 100*self.err_490,
-                        100*(self.mean_490 - self.err_490), color='g',alpha=0.2 )
-        py.fill_between(self.t, 100*(self.mean_405 + self.err_405),
-                        100*(self.mean_405 - self.err_405), color='r',alpha=0.2  )
-        py.plot(self.t, 100*self.mean_490 , 'g', linewidth=0.5)
-        py.plot(self.t, 100*self.mean_405, 'r', linewidth=0.5)
+        for i in self.mean_490:
+            py.fill_between(self.t, 100*self.mean_490[i] + 100*self.err_490[i],
+                            100*(self.mean_490[i] - self.err_490[i]), color='g',alpha=0.2 )
+            py.fill_between(self.t, 100*(self.mean_405[i] + self.err_405[i]),
+                            100*(self.mean_405[i] - self.err_405[i]), color='r',alpha=0.2  )
+            py.plot(self.t, 100*self.mean_490[i] , 'g', linewidth=0.5)
+            py.plot(self.t, 100*self.mean_405[i], 'r', linewidth=0.5)
         py.axvline(x=0, c='k',ls='--', alpha=0.5)
         py.xlabel('Time Relative to Stimulus (s)')
         py.ylabel(r'$\frac{\Delta F}{F}$ (%)')
@@ -476,9 +474,10 @@ class analysis:
             print('Must have usable data loaded in the analysis first!')
             return
         
-        py.fill_between(self.t, 100*self.mean_490 + 100*self.err_490,
-                        100*(self.mean_490 - self.err_490), color='g',alpha=0.2 )
-        py.plot(self.t, 100*self.mean_490 , 'g', linewidth=0.5)
+        for i in self.mean_490:
+            py.fill_between(self.t, 100*self.mean_490[i] + 100*self.err_490[i],
+                            100*(self.mean_490[i] - self.err_490[i]), color='g',alpha=0.2 )
+            py.plot(self.t, 100*self.mean_490[i] , 'g', linewidth=0.5)
         py.axvline(x=0, c='k',ls='--', alpha=0.5)
         py.xlabel('Time Relative to Stimulus (s)')
         py.ylabel(r'$\frac{\Delta F}{F}$ (%)')
@@ -506,7 +505,8 @@ class analysis:
             return
 
         df=self.bin_data(binsize,save=save)
-        py.errorbar(df.index,100*df['mean'],yerr=100*df['sem'])
+        for i in df.columns.get_level_values('cond'):
+            py.errorbar(x=df.index,y=100*df['mean'][i],yerr=100*df['sem'][i])
         py.xlabel('Time Relative to Stimulus (s)')
         py.ylabel(r'$\frac{\Delta F}{F}$ (%)')
         py.show()
@@ -533,31 +533,37 @@ class analysis:
 
         #start the bins in both directions from 0
         bins=np.append(-np.arange(0, self.t_prestim+binsize, binsize)[:0:-1],
-                    np.arange(0, self.t[-1]+binsize, binsize ))
+                        np.arange(0, self.t[-1]+binsize, binsize ))
 
         mice=[m.mouse_id for m in self.raw_data] # get the names of the kept mice in the analysis
 
-        df=pd.DataFrame(zip(bins[np.digitize(self.t,bins)-1],*self.all_490),
-                        index=self.t,  columns=['bin start (s)']+mice )
+        df=self.all_490.copy()
+        for i in df.columns.get_level_values('cond'):
+            df[i,'bin start (s)']=bins[np.digitize(self.t,bins)-1]
 
         def mean_f_trapz(y):
             #calculate the mean within each bin by numerical integration
             y=y.dropna()
             return np.trapz(y,x=y.index)/(y.index[-1]-y.index[0])
 
-        df=df.pivot_table(index=['bin start (s)'],values=mice,aggfunc=mean_f_trapz)
-        df['mean']=df[mice].mean(axis=1)
-        df['sem']=df[mice].sem(axis=1)
+        def do_binning(x):
+            x=x.droplevel('cond',axis=1)
+            return x.pivot_table(values=x.columns[x.columns.isin(mice)], 
+                                 index=['bin start (s)'],aggfunc=mean_f_trapz)
+
+        binned=df.groupby('cond',axis=1).apply(do_binning)
+        binned_stats=pd.concat([binned.groupby('cond',axis=1).mean(),binned.groupby('cond',axis=1).sem()],keys=['mean','sem'],axis=1)
+
 
         if not hasattr(self,'binned'):
             self.binned={}
-        self.binned.update({f'{binsize}':df.to_dict()})
+        self.binned.update({f'{binsize}':binned_stats})
 
         if save:
-            df.to_csv(os.path.join(self.file_loc,f"binned_{binsize}s {'_'.join([r.mouse_id for r in self.raw_data])}.csv"))
+            binned_stats.to_csv(os.path.join(self.file_loc,f"binned_{binsize}s {'_'.join([r.mouse_id for r in self.raw_data])}.csv"))
         
             
-        return df
+        return binned_stats
 
 
     def bin_avg(self,start:int,end:int,save=False):
@@ -581,41 +587,27 @@ class analysis:
         if not self.loaded:
             print('Must have usable data loaded in the analysis first!')
             return
+        
+        aucs=self.bin_auc(start,end,save=False,pr=False)
+        if (end>self.t_endrec) or (start<-self.t_prestim):
+            print('Warning, bin is out of bounds')
 
-        nearest= lambda arr,val: np.abs(arr-val).argmin()
+        if aucs is not None:
+            avgs=aucs/(end-start)
 
-        start_t=nearest(self.t,start)
-        end_t=nearest(self.t,end)
-
-
-        try: 
-            y=self.all_490[:,start+self.stim_ind:end+self.stim_ind+1]
-            x=self.t[start+self.stim_ind:end+self.stim_ind+1]
-            mask= ~(np.isnan(y).max(axis=0))
-            y=y[:,mask]
-            x=x[mask]
-
-            avg=np.trapz(y, x=x,axis=1)/(end_t-start_t)
-            avg_dict={}
             print(' ')
-            for r,av in zip(self.normed_data,avg): 
-                avg_dict.update({r.mouse_id:av})
-                print(f'{r.mouse_id}:{av}')
+            print(avgs)
 
             if not hasattr(self,'avgs'):
                 self.avgs={}
-            self.avgs.update({f'_{start}_{end}':avg_dict})
+            self.avgs.update({f'_{start}_{end}':avgs})
             
             if save:
-                df=pd.DataFrame([avg_dict],index=['Mean ∆F/F']).T
-                df.to_csv(os.path.join(self.file_loc,f"avg_{start}s_{end}s_{'_'.join([r.mouse_id for r in self.raw_data])}.csv"))
+                avgs.to_csv(os.path.join(self.file_loc,f"avg_{start}s_{end}s_{'_'.join([r.mouse_id for r in self.raw_data])}.csv"))
 
-        except IndexError:
-            print('Time stamps are outside the scope of the analysis! Choose a different start and end time or restart the analysis with a different t_endrec.')
-        
-        return avg_dict
+            return avgs
     
-    def bin_auc(self,start:int,end:int,save=False):
+    def bin_auc(self,start:int,end:int,save=False,pr=True):
         """
         area under the curve of a specified section of data for each mouse
 
@@ -637,34 +629,34 @@ class analysis:
             print('Must have usable data loaded in the analysis first!')
             return
 
-        try: 
-            y=self.all_490[:,start+self.stim_ind:end+self.stim_ind+1]
-            x=self.t[start+self.stim_ind:end+self.stim_ind+1]
-            mask= ~(np.isnan(y).max(axis=0))
-            y=y[:,mask]
-            x=x[mask]
+        nearest=lambda arr,val: arr[np.abs(arr-val).argmin()]
+        start_t=nearest(self.t,start)
+        end_t=nearest(self.t,end)
 
-            aucs=np.trapz(y, x=x,axis=1)
-            auc_dict={}
-            print(' ')
-            for r,auc in zip(self.normed_data,aucs): 
-                auc_dict.update({r.mouse_id:auc})
-                print(f'{r.mouse_id}:{auc}')
+        if (end>self.t_endrec) or (start<-self.t_prestim):
+            print('Warning, bin is out of bounds')
+
+        try: 
+            y=self.all_490.loc[start_t:end_t].copy()
+            aucs=y.apply(lambda x: np.trapz(x=x.dropna().index,y=x.dropna().values),axis=0)
+            aucs=pd.DataFrame(aucs,columns=['Mean ∆F/F'])
+
+            if pr:
+                print(' ')
+                print(aucs)
 
             if not hasattr(self,'aucs'):
                 self.aucs={}
-            self.aucs.update({f'_{start}_{end}':auc_dict})
+            self.aucs.update({f'_{start}_{end}':aucs})
 
             if save:
-                df=pd.DataFrame([auc_dict],index=['AUC']).T
-                df.to_csv(os.path.join(self.file_loc,f"auc_{start}s_{end}s_{'_'.join([r.mouse_id for r in self.raw_data])}.csv"))
+                aucs.to_csv(os.path.join(self.file_loc,f"auc_{start}s_{end}s_{'_'.join([r.mouse_id for r in self.raw_data])}.csv"))
 
-                
-            
         except IndexError:
             print('Time stamps are outside the scope of the analysis! Choose a different start and end time or restart the analysis with a different t_endrec.')
+            return None
         
-        return auc_dict
+        return aucs
 
     def ind_peak_df_f(self,extrema:str,save=False):
         """
@@ -688,43 +680,36 @@ class analysis:
 
 
         if extrema=='max':
-            pks_ind=self.t_prestim+np.nanargmax(self.all_490[:,self.t_prestim:],axis=1)
+            pk_inds=self.all_490.loc[0:].apply(lambda x: x.argmax(skipna=True))
         elif extrema=='min':
-            pks_ind=self.t_prestim+np.nanargmin(self.all_490[:,self.t_prestim:],axis=1)
+            pk_inds=self.all_490.loc[0:].apply(lambda x: x.argmin(skipna=True))
         else:
             print('Unrecognized extrema!')
+        if ((self.t_endrec-pk_inds)<=20).any(): print(f'Warning! {extrema} is on the edge of the recording')
+        pk_inds[self.t_endrec-pk_inds<=20]-=20
 
-        for i,v in enumerate(pks_ind):
-            #check that the extrema aren't on the edge of the recording
-            if self.all_490.shape[-1]-20<v:
-                pks_ind[i]-=10
-                print(f'Warning! {extrema} is on the edge of the recording')
+        peaks={}
+        for i,v in pk_inds.items():
+            y=self.all_490[0:].iloc[v-5:v+6][i].dropna()
+            peaks.update({i:np.trapz(x=y.index,y=y.values)})
 
-        surr_inds=np.arange(-5,6)+pks_ind[:,np.newaxis]
-        row_inds=np.arange(self.all_490.shape[0]).repeat(11)
-        x=self.t[surr_inds.flatten()].reshape((-1,11))
-        y= self.all_490[row_inds,surr_inds.flatten()].reshape((-1,11))
+        peaks=pd.DataFrame(pd.Series(peaks), columns=[f'{extrema} ∆F/F'])
+        pk_times=pd.DataFrame(pk_inds.apply(lambda x: self.all_490[0:].index[x]), columns=['time (s)'])
 
-        #average over a 10 second window around the peaks using numerical integration
-        peaks=[np.trapz(y=i[~np.isnan(i)], x=j[~np.isnan(i)])/10 for i,j in zip(y,x)]
+        peaks=pd.concat([peaks,pk_times],axis=1)
 
-        pks_dict={}
-
+        print(peaks)
         print('')
-        for r,p,l in zip(self.normed_data,peaks,x[:,5].flatten()):
-            pks_dict.update({r.mouse_id:[p,l]})
-            print(f'{r.mouse_id}:{p}, at {l}s')
-
         if not hasattr(self,'pks'):
             self.pks={}
 
-        self.pks.update({f'{extrema}':pks_dict})
+        self.pks.update({f'{extrema}':peaks})
 
         if save:
-            df=pd.DataFrame(pks_dict,index=[f'{extrema} ∆F/F','time (s)']).T
+            df=pd.DataFrame(peaks,columns=[f'{extrema} ∆F/F','time (s)']).T
             df.to_csv(os.path.join(self.file_loc,f"ind_{extrema}_{'_'.join([r.mouse_id for r in self.raw_data])}.csv"))
 
-        return pks_dict
+        return peaks
 
 
     def mean_peak_df_f(self,extrema:str,save=False):
@@ -747,38 +732,53 @@ class analysis:
             print('Must have usable data loaded in the analysis first!')
             return
 
-        pk_ind= self.t_prestim+np.nanargmax(self.mean_490[self.t_prestim:]) if extrema=='max' else self.t_prestim+np.nanargmin(self.mean_490[self.t_prestim:])
-        if self.all_490.shape[-1]-20<pk_ind:
-                pk_ind-=10
-                print(f'Warning! {extrema} is on the edge of the recording')
+        pk_inds=self.mean_490.loc[0:].apply(lambda x: x.argmax(skipna=True))
+        if ((self.t_endrec-pk_inds)<=20).any(): print(f'Warning! {extrema} is on the edge of the recording')
+        pk_inds[(self.t_endrec-pk_inds)<20]-=20
 
-        x=self.t[pk_ind-5:pk_ind+6]
-        y= self.all_490[:,pk_ind-5:pk_ind+6]
-        mask= ~(np.isnan(y).max(axis=0))
-        x,y= x[mask],y[:,mask]
+        peaks={}
+        for i,v in pk_inds.items():
+            y=self.all_490[0:].iloc[v-10:v+10][i].dropna()
+            y=y.apply(lambda x: np.trapz(x=x.dropna().index,y=x.dropna().values))
+            y.index=y.index.map(lambda x: (i,x))
+            peaks.update(y.to_dict())
 
-        #average over a 10 second window around the peak using numerical integration
-        peak=np.trapz(y,x=x,axis=1)/10
-        pks_dict={}
+        peaks=pd.DataFrame(pd.Series(peaks), columns=[f'{extrema} ∆F/F'])
+        ts=pk_inds.apply(lambda x: self.all_490[0:].index[x])
+        peaks['ts']=np.nan
+        for i in ts.index:
+            peaks.loc[i,:]['ts']=ts[i]
 
         print('')
-        for r,p in zip(self.normed_data,peak):
-            pks_dict.update({r.mouse_id:[p,x[5]]})
-            print(f'{r.mouse_id}:{p}, at {x[5]}s')
-
+        print(peaks)
         if not hasattr(self,'mean_pks'):
             self.mean_pks={}
 
-        self.mean_pks.update({f'{extrema}':pks_dict})
+        self.mean_pks.update({f'{extrema}':peaks})
 
         if save:
-            df=pd.DataFrame(pks_dict,index=[f'{extrema} ∆F/F','time (s)']).T
-            df.to_csv(os.path.join(self.file_loc,f"mean_{extrema}_{'_'.join([r.mouse_id for r in self.raw_data])}.csv"))
+            peaks.to_csv(os.path.join(self.file_loc,f"mean_{extrema}_{'_'.join([r.mouse_id for r in self.raw_data])}.csv"))
 
-        return pks_dict
+        return peaks
 
 
     def time_to_half_pk(self):
+        raise NotImplementedError
+
+    #old versions of functions
+    def compute_means(self):
+        """
+        compute the average and standard error accross recordings
+        (Note: this function has been consolidated into compute)
+        """
+        raise NotImplementedError
+
+    
+    def recompute(self):
+        """
+        re-crop/normalize all data and recompute the mean signal after updating parameters
+        (Note: this function has been consolidated into compute)
+        """
         raise NotImplementedError
 
 

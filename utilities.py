@@ -19,6 +19,11 @@ class mouse_data:
          if t_start: self.t_start=t_start
          self.t_stim=t_stim if t_stim else None
 
+class NoStimTime(Exception):
+    """
+    no stimulus time has been specified for this mouse
+    """
+    pass
 
 class Encoder(json.JSONEncoder):
     """json encoder for all json files generated/used in the pipeline"""
@@ -53,14 +58,6 @@ def select_data(data:mouse_data,t_endrec,t_prestim):
         to keep
     Returns
     -------
-    start_ind: int
-        index of the beginning of the cropped region of the recording relative
-        to the raw data
-    stim_ind: int
-        index of the stim time relative to the raw data
-    end_ind: int
-        index of the end of the cropped region of the recording relative
-        to the raw data
     pre_stim_490: numpy.ndarray
         490 data pre stim
     pre_stim_405: numpy.ndarray
@@ -69,6 +66,8 @@ def select_data(data:mouse_data,t_endrec,t_prestim):
         cropped 490 data
     sel_405: numpy.ndarray
         cropped 405 data
+    t: np.ndarray
+        updated time array for the normalized data
     """
 
     start_ind=math.ceil((data.t_stim-t_prestim)*data.fs)+1
@@ -80,8 +79,9 @@ def select_data(data:mouse_data,t_endrec,t_prestim):
     sel_490=data.F490[start_ind:end_ind+1]
     sel_405=data.F405[start_ind:end_ind+1]
 
+    t=data.t[start_ind:end_ind]-data.t[stim_ind]
 
-    return (start_ind, stim_ind, end_ind, pre_stim_490, pre_stim_405, sel_490, sel_405)
+    return pre_stim_490, pre_stim_405, sel_490, sel_405, t, start_ind
 
 def norm_to_median_pre_stim(data:mouse_data,t_endrec,t_prestim):
     """
@@ -102,17 +102,11 @@ def norm_to_median_pre_stim(data:mouse_data,t_endrec,t_prestim):
         1D array of normalized 490 data 
     normed_405: numpy.ndarray
         1D array of normalized 405 data 
-    start_ind: int
-        index of the beginning of the cropped region of the recording relative
-        to the raw data
-    stim_ind: int
-        index of the stim time relative to the raw data
-    end_ind: int
-        index of the end of the cropped region of the recording relative
-        to the raw data
+    t: np.ndarray
+        updated time array for the normalized data
     """
 
-    start_ind, stim_ind, end_ind, pre_stim_490, pre_stim_405, sel_490, sel_405=select_data(data,t_endrec,t_prestim)
+    pre_stim_490, pre_stim_405, sel_490, sel_405,t, start_ind=select_data(data,t_endrec,t_prestim)
 
     #compute the baseline by taking the median of the 5 miutes pre-stimu data
     f490_baseline=np.median(pre_stim_490)
@@ -121,7 +115,7 @@ def norm_to_median_pre_stim(data:mouse_data,t_endrec,t_prestim):
     #normalize the 490 and 405 to the respctive baseline
     normed_490=(sel_490-f490_baseline)/f490_baseline
     normed_405=(sel_405-f405_baseline)/f405_baseline
-    return (normed_490,normed_405, start_ind, stim_ind, end_ind)
+    return normed_490, normed_405, t, start_ind
 
 def norm_to_405(data:mouse_data,t_endrec,t_prestim):
     """
@@ -142,29 +136,23 @@ def norm_to_405(data:mouse_data,t_endrec,t_prestim):
         1D array of normalized 490 data 
     normed_405: numpy.ndarray
         1D array of normalized 405 data 
-    start_ind: int
-        index of the beginning of the cropped region of the recording relative
-        to the raw data
-    stim_ind: int
-        index of the stim time relative to the raw data
-    end_ind: int
-        index of the end of the cropped region of the recording relative
-        to the raw data
+    t: np.ndarray
+        updated time array for the normalized data
     """
-    start_ind, stim_ind, end_ind, pre_stim_490, pre_stim_405, sel_490, sel_405=select_data(data,t_endrec,t_prestim)
+    _, _, sel_490, sel_405,t, start_ind=select_data(data,t_endrec,t_prestim)
 
     x=np.arange(len(sel_405))
     m, b, _, _, _ = st.linregress(x, sel_405)
 
     fit_405=m*x+b
 
-    normed_490=100*np.divide(sel_490-fit_405, fit_405)
-    normed_490-=np.median(normed_490[0:t_prestim])
+    corr_490=sel_490-fit_405
+    f490_baseline=np.median(corr_490[:t_prestim*data.fs])
+    normed_490=(corr_490-f490_baseline)/f490_baseline
 
-    normed_405=100*np.divide(sel_405-fit_405, fit_405)
-    normed_405-=np.median(normed_405[0:t_prestim])
+    normed_405=(sel_405-fit_405)/5
     
-    return (normed_490,normed_405, start_ind, stim_ind, end_ind)
+    return normed_490, normed_405, t, start_ind
 
 def zscore(data:mouse_data,t_endrec,t_prestim):
     pass 
