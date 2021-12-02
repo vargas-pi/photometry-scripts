@@ -317,8 +317,8 @@ class analysis:
 
                 #clear the dataframes
                 cols=pd.MultiIndex(levels=[[]]*3,codes=[[]]*3,names=('cond','mouse','trial'))
-                self.all_490=pd.DataFrame([],columns=cols)
-                self.all_405=pd.DataFrame([],columns=cols)
+                self.all_490=pd.DataFrame([],columns=cols,index=self.t)
+                self.all_405=pd.DataFrame([],columns=cols,index=self.t)
 
                 for i,r in enumerate(self.raw_data): #loop through the raw data and redo the normalization/downsampling
 
@@ -329,8 +329,8 @@ class analysis:
                         self.raw_data[i].trial,r.trial=[max(mi)+1]*2
 
                     m=self.normalize_downsample(r,plot=False)
-                    self.all_490[m.cond,m.mouse_id,m.trial]=pd.Series(m.F490,index=m.t)
-                    self.all_405[m.cond,m.mouse_id,m.trial]=pd.Series(m.F405,index=m.t)
+                    self.all_490[m.cond,m.mouse_id,m.trial]=m.F490
+                    self.all_405[m.cond,m.mouse_id,m.trial]=m.F405
 
                 self.conditions=self.all_490.columns.get_level_values('cond')
 
@@ -864,5 +864,5 @@ def load_analysis(fpath):
         raise Exception('Unrecognized file format!')
     
     a.file_loc=fpath.parent
-    a.compute()
+    # a.compute()
     return a
