@@ -130,7 +130,7 @@ def norm_to_median_pre_stim(data:mouse_data,t_endrec,t_prestim):
     normed_405=(sel_405-f405_baseline)/f405_baseline
     return normed_490, normed_405, t
 
-def norm_to_405(data:mouse_data,t_endrec,t_prestim,s=5):
+def norm_to_405(data:mouse_data,t_endrec,t_prestim,s=20):
     """
     normalize to a linear fit of the 405 data'
 

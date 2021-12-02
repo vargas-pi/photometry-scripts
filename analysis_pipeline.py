@@ -537,8 +537,8 @@ class analysis:
             print('Must have usable data loaded in the analysis first!')
             return
 
-        df=self.bin_data(binsize,save=save)
-        
+        df,_=self.bin_data(binsize,save=save)
+
         if ax is None: _,ax=py.subplots(1,1)
         for i in df.columns.get_level_values('cond'):
             ax.errorbar(x=df.index,y=100*df['mean'][i],yerr=100*df['sem'][i])
@@ -600,7 +600,7 @@ class analysis:
             binned_stats.to_csv(os.path.join(self.file_loc,f"binned_{binsize}s {'_'.join([r.mouse_id for r in self.raw_data])}.csv"))
         
             
-        return binned_stats
+        return binned_stats,binned
 
 
     def bin_avg(self,start:int,end:int,save=False):
