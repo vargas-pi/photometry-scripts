@@ -864,5 +864,5 @@ def load_analysis(fpath):
         raise Exception('Unrecognized file format!')
     
     a.file_loc=fpath.parent
-    # a.compute()
+    a.compute()
     return a
