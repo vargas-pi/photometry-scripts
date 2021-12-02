@@ -63,16 +63,31 @@ def load_append_save_cli():
 
         for i in range(len(d)): #loop through all animal data stored in this run 
             #allow the user to specify the stimulus time in seconds relative to the start of the recording
-            d[i].t_stim=float(input(f't_stim for mouse {d[i].mouse_id}:'))
-            m=a.normalize_downsample(d[i])
+            if hasattr(d[i],'t_stim'):
+                if d[i].t_stim is None:
+                    d[i].t_stim=float(input(f't_stim for mouse {d[i].mouse_id}:'))
+            else:
+                d[i].t_stim=float(input(f't_stim for mouse {d[i].mouse_id}:'))
+
+
+            #TODO: finish this up
+            if hasattr(d[i],'cond'):
+                if d[i].cond is None:
+                    resp=input(f"if you would like to name the condition for this recording enter it here, otherwise type 'no':  ")
+                    if not resp.lower() in ['n','no']:
+                        d[i].cond=resp
+            else:
+                resp=input(f"if you would like to name the condition for this recording enter it here, otherwise type 'no':  ")
+                if not resp.lower() in ['n','no']:
+                    d[i].cond=resp
+
+            _=a.normalize_downsample(d[i])
             #allow the user to decide if they'd like to keep the data and store the data in the appropriate place
             if int(input('Would you like to 1. keep or 2. discard this data?[1/2]: '))==1:
                 a.raw_data.append(d[i])
-                a.normed_data.append(m)
                 a.loaded=True
             else:
                 a.excluded_raw.append(d[i])
-                a.excluded_normed.append(m)
 
         
         cont=input('Would you like to continue adding?[y/n]').lower()
@@ -133,6 +148,13 @@ def mean_peak_df_f_cli():
     opts=['max','min']
     a.mean_peak_df_f(opts[ans],save=True)
 
+def plot_ind_trace_cli():
+    m=input('please enter the name of the mouse you would like to view: ')
+    c=input("please enter the condition you would like to plot this mouse's data from (to plot all type 'no'): ")
+    c=None if c.lower() in ['n','no'] else c
+    p4=input('would you like to plot the 405? [y/n]: ').lower() in ['y','ye','yes']
+    a.plot_ind_trace(m,cond=c,plot_405=p4)
+
 running=True
 if not a.loaded:
     load_append_save_cli()
@@ -154,7 +176,8 @@ while running:
     print('11. retrieve an excluded mouse from this analysis')
     print('12. update the parameters of this analysis')
     print('13. export normalized 490 data to .mat')
-    print('14. exit')
+    print('14. plot the trace for an individual mouse')
+    print('15. exit')
     print('')
     ans=input('(input the number of the desired task): ')
 
@@ -174,6 +197,7 @@ while running:
         '11':retrieve_excluded_cli,
         '12':update_params_cli,
         '13':a.export_to_mat,
+        '14':plot_ind_trace_cli
         }
     
     try:

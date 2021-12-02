@@ -2,6 +2,7 @@ import math
 import json
 import numpy as np
 from scipy import stats as st
+from scipy.interpolate import interp1d
 from datetime import timedelta
 
 
@@ -44,6 +45,12 @@ def hook(obj):
         return mouse_data(**obj['mouse_data'])
     return obj
 
+def resample(x,y, fs_n=1, kind='linear'):
+    """resample data by interpolation"""
+    #adapted from: https://stackoverflow.com/questions/29085268/resample-a-numpy-array/52347385
+    f = interp1d(x,y, kind)
+    x2=np.arange(round(x[0]), round(x[-1])+1/fs_n,1/fs_n)
+    return x2,f(x2)
 
 def select_data(data:mouse_data,t_endrec,t_prestim):
     """
@@ -70,18 +77,24 @@ def select_data(data:mouse_data,t_endrec,t_prestim):
         updated time array for the normalized data
     """
 
-    start_ind=math.ceil((data.t_stim-t_prestim)*data.fs)+1
-    stim_ind=math.ceil((data.t_stim)*data.fs)+1
-    end_ind=math.ceil((data.t_stim+t_endrec)*data.fs)+1
+    start_ind=get_sample(data.t_stim-t_prestim,data.fs)
+    stim_ind=get_sample(data.t_stim,data.fs)
+    end_ind=get_sample(data.t_stim+t_endrec,data.fs)
 
-    pre_stim_490=data.F490[start_ind:stim_ind]
-    pre_stim_405=data.F405[start_ind:stim_ind]
-    sel_490=data.F490[start_ind:end_ind+1]
-    sel_405=data.F405[start_ind:end_ind+1]
+    pre_stim_490=data.F490[start_ind-1:stim_ind+1]
+    pre_stim_405=data.F405[start_ind-1:stim_ind+1]
+    sel_490=data.F490[start_ind-1:end_ind+2]
+    sel_405=data.F405[start_ind-1:end_ind+2]
 
-    t=data.t[start_ind:end_ind]-data.t[stim_ind]
+    t=data.t[start_ind-1:end_ind+2]-data.t[stim_ind]
 
-    return pre_stim_490, pre_stim_405, sel_490, sel_405, t, start_ind
+    return pre_stim_490, pre_stim_405, sel_490, sel_405, t
+
+def get_sample(t,fs):
+    """
+    get sample just after desired time
+    """
+    return math.floor(t*fs)+1
 
 def norm_to_median_pre_stim(data:mouse_data,t_endrec,t_prestim):
     """
@@ -106,7 +119,7 @@ def norm_to_median_pre_stim(data:mouse_data,t_endrec,t_prestim):
         updated time array for the normalized data
     """
 
-    pre_stim_490, pre_stim_405, sel_490, sel_405,t, start_ind=select_data(data,t_endrec,t_prestim)
+    pre_stim_490, pre_stim_405, sel_490, sel_405,t=select_data(data,t_endrec,t_prestim)
 
     #compute the baseline by taking the median of the 5 miutes pre-stimu data
     f490_baseline=np.median(pre_stim_490)
@@ -115,9 +128,9 @@ def norm_to_median_pre_stim(data:mouse_data,t_endrec,t_prestim):
     #normalize the 490 and 405 to the respctive baseline
     normed_490=(sel_490-f490_baseline)/f490_baseline
     normed_405=(sel_405-f405_baseline)/f405_baseline
-    return normed_490, normed_405, t, start_ind
+    return normed_490, normed_405, t
 
-def norm_to_405(data:mouse_data,t_endrec,t_prestim):
+def norm_to_405(data:mouse_data,t_endrec,t_prestim,s=5):
     """
     normalize to a linear fit of the 405 data'
 
@@ -139,20 +152,21 @@ def norm_to_405(data:mouse_data,t_endrec,t_prestim):
     t: np.ndarray
         updated time array for the normalized data
     """
-    _, _, sel_490, sel_405,t, start_ind=select_data(data,t_endrec,t_prestim)
+    pre_stim_490, _, sel_490, sel_405,t=select_data(data,t_endrec,t_prestim)
 
     x=np.arange(len(sel_405))
+
     m, b, _, _, _ = st.linregress(x, sel_405)
 
     fit_405=m*x+b
-
     corr_490=sel_490-fit_405
-    f490_baseline=np.median(corr_490[:t_prestim*data.fs])
+
+    f490_baseline=np.median(corr_490[:len(pre_stim_490)])
     normed_490=(corr_490-f490_baseline)/f490_baseline
 
-    normed_405=(sel_405-fit_405)/5
+    normed_405=(sel_405-fit_405)/s
     
-    return normed_490, normed_405, t, start_ind
+    return normed_490, normed_405, t
 
 def zscore(data:mouse_data,t_endrec,t_prestim):
     pass 

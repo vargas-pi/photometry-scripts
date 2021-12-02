@@ -11,6 +11,8 @@ from typing import Dict
 from pathlib import Path
 from copy import deepcopy
 from scipy.io import savemat
+from pandas import IndexSlice as idx
+
 
 
 class analysis:
@@ -232,9 +234,15 @@ class analysis:
 
         for i in range(len(d)): 
             if t_stims is not None:
+                #should i add an option to deal with multiple stim times?
                 d[i].t_stim=t_stims[d[i].mouse_id]
             elif not hasattr(d[i],'t_stim'):
                 raise NoStimTime
+            if conds is not None:
+                #should i add an option to deal with multiple stim times?
+                d[i].cond=conds[d[i].mouse_id]
+            elif not hasattr(d[i],'cond'):
+                d[i].cond=0
             #increment the trial number for the given mouse
             d[i].trial=len(list(filter( lambda x: x==d[i].mouse_id, self.raw_data)))
         
@@ -261,15 +269,10 @@ class analysis:
             the normalized downsampled data for the given mouse
         """
 
-        normed_490, normed_405, t, start_ind = self.norm_method(rec,self.t_endrec,self.t_prestim)
-        #resample the data to 1Hz
-        #NOTE: when downsampling we want the stimulus to be at t=0
-        n_stim_ind=np.where(t==0)[0][0]
-        ds=lambda x: np.append( np.flip( x[ n_stim_ind::-math.floor(rec.fs) ][1:] ),
-                                x[ n_stim_ind::math.floor(rec.fs) ]     )
-        ds_490=ds(normed_490)
-        ds_405=ds(normed_405)
-        ds_t=ds(t)
+        normed_490, normed_405, t = self.norm_method(rec,self.t_endrec,self.t_prestim)
+        #resample the data to 1Hz via linear interpolation
+        ds_t,ds_490=resample(t,normed_490)
+        _,ds_405=resample(t,normed_405)
 
         self.t=ds_t.copy()
 
@@ -286,7 +289,7 @@ class analysis:
 
         if hasattr(rec,'t_start'):
             #if we saved the timestamps of this recording, downsample the time stamps as well
-            t_start=rec.t_start+rec.t[start_ind]*timedelta(seconds=1)
+            t_start=rec.t_start+rec.t_stim*timedelta(seconds=1)
             #create a new mouse_data object for the cleaned data
             m.t_start=t_start
 
@@ -301,6 +304,8 @@ class analysis:
 
         return m
 
+    def get_mouse_raw(self,mouse):
+        return list(filter( lambda x: x.mouse_id==mouse, self.raw_data))
     
     def compute(self):
         """
@@ -312,16 +317,20 @@ class analysis:
 
                 #clear the dataframes
                 cols=pd.MultiIndex(levels=[[]]*3,codes=[[]]*3,names=('cond','mouse','trial'))
-                self.all_490=pd.DataFrame([],columns=cols,index=self.t)
-                self.all_405=pd.DataFrame([],columns=cols,index=self.t)
+                self.all_490=pd.DataFrame([],columns=cols)
+                self.all_405=pd.DataFrame([],columns=cols)
 
-                for i in self.raw_data: #loop through the raw data and redo the normalization/downsampling
-                    m=self.normalize_downsample(i,plot=False)
-                    cond=m.cond if hasattr(m,'cond') else 0
-                    #need to account for data that has not been tagged with trial here
-                    #also need to think about when data should be designated to conditions
-                    self.all_490[cond,m.mouse_id,m.trial]=pd.Series(m.F490,index=m.t)
-                    self.all_405[cond,m.mouse_id,m.trial]=pd.Series(m.F405,index=m.t)
+                for i,r in enumerate(self.raw_data): #loop through the raw data and redo the normalization/downsampling
+
+                    if not hasattr(r,'cond'): self.raw_data[i].cond,r.cond=0,0
+                    if not hasattr(r,'trial'):
+                        get_trial=lambda x: x.trial if hasattr(x,'trial') else -1
+                        mi=list(map( get_trial, self.get_mouse_raw(r.mouse_id) ))
+                        self.raw_data[i].trial,r.trial=[max(mi)+1]*2
+
+                    m=self.normalize_downsample(r,plot=False)
+                    self.all_490[m.cond,m.mouse_id,m.trial]=pd.Series(m.F490,index=m.t)
+                    self.all_405[m.cond,m.mouse_id,m.trial]=pd.Series(m.F405,index=m.t)
 
                 self.conditions=self.all_490.columns.get_level_values('cond')
 
@@ -432,7 +441,7 @@ class analysis:
         self.compute()
 
 
-    def plot_both(self):
+    def plot_both(self,show=True,ax=None):
         """
         plot the average normalized 490 and 405 signal with error
         """
@@ -440,21 +449,23 @@ class analysis:
         if not self.loaded:
             print('Must have usable data loaded in the analysis first!')
             return
-        
+        if ax is None: _,ax=py.subplots(1,1)
+
         for i in self.mean_490:
-            py.fill_between(self.t, 100*self.mean_490[i] + 100*self.err_490[i],
+            ax.fill_between(self.t, 100*self.mean_490[i] + 100*self.err_490[i],
                             100*(self.mean_490[i] - self.err_490[i]), color='g',alpha=0.2 )
-            py.fill_between(self.t, 100*(self.mean_405[i] + self.err_405[i]),
+            ax.fill_between(self.t, 100*(self.mean_405[i] + self.err_405[i]),
                             100*(self.mean_405[i] - self.err_405[i]), color='r',alpha=0.2  )
-            py.plot(self.t, 100*self.mean_490[i] , 'g', linewidth=0.5)
-            py.plot(self.t, 100*self.mean_405[i], 'r', linewidth=0.5)
-        py.axvline(x=0, c='k',ls='--', alpha=0.5)
-        py.xlabel('Time Relative to Stimulus (s)')
-        py.ylabel(r'$\frac{\Delta F}{F}$ (%)')
+            ax.plot(self.t, 100*self.mean_490[i] , 'g', linewidth=0.5)
+            ax.plot(self.t, 100*self.mean_405[i], 'r', linewidth=0.5)
+        ax.axvline(x=0, c='k',ls='--', alpha=0.5)
+        ax.set_xlabel('Time Relative to Stimulus (s)')
+        ax.set_ylabel(r'$\frac{\Delta F}{F}$ (%)')
 
-        py.show()
+        if show:
+            py.show()
 
-    def plot_ind_trace(self,mouse:mouse_data):
+    def plot_ind_trace(self,mouse:str,cond=None,plot_405=True,ax=None,show=True):
         """
         plot the individual trace for a given mouse
 
@@ -463,9 +474,29 @@ class analysis:
         mouse:mouse_data
             mouse to plot
         """
-        raise NotImplementedError
+        if not self.loaded:
+            print('Must have usable data loaded in the analysis first!')
+            return
         
-    def plot_490(self):
+        if ax is None: _,ax=py.subplots(1,1)
+        if cond is not None:
+            ax.plot(100*self.all_490.loc[:,cond,mouse] , 'g', linewidth=0.5)
+            if plot_405:
+                ax.plot(100*self.all_405.loc[:,cond,mouse], 'r', linewidth=0.5)
+        else:
+            #TODO: make the 490 traces different shades of green for each condition and add a legend
+            ax.plot(100*self.all_490.loc[:,idx[:,mouse]] , 'g', linewidth=0.5)
+            if plot_405:
+                ax.plot(100*self.all_405.loc[:,idx[:,mouse]], 'r', linewidth=0.5)
+        ax.axvline(x=0, c='k',ls='--', alpha=0.5)
+        ax.set_xlabel('Time Relative to Stimulus (s)')
+        ax.set_ylabel(r'$\frac{\Delta F}{F}$ (%)')
+        
+        if show:
+            py.show()
+
+        
+    def plot_490(self,show=True,ax=None):
         """
         plot the average normalized 490 signal with error
         """
@@ -474,18 +505,20 @@ class analysis:
             print('Must have usable data loaded in the analysis first!')
             return
         
+        if ax is None: _,ax=py.subplots(1,1)
         for i in self.mean_490:
-            py.fill_between(self.t, 100*self.mean_490[i] + 100*self.err_490[i],
+            ax.fill_between(self.t, 100*self.mean_490[i] + 100*self.err_490[i],
                             100*(self.mean_490[i] - self.err_490[i]), color='g',alpha=0.2 )
-            py.plot(self.t, 100*self.mean_490[i] , 'g', linewidth=0.5)
-        py.axvline(x=0, c='k',ls='--', alpha=0.5)
-        py.xlabel('Time Relative to Stimulus (s)')
-        py.ylabel(r'$\frac{\Delta F}{F}$ (%)')
+            ax.plot(self.t, 100*self.mean_490[i] , 'g', linewidth=0.5)
+        ax.axvline(x=0, c='k',ls='--', alpha=0.5)
+        ax.set_xlabel('Time Relative to Stimulus (s)')
+        ax.set_ylabel(r'$\frac{\Delta F}{F}$ (%)')
 
-        py.show()
+        if show:
+            py.show()
 
 
-    def bin_plot(self,binsize,save=False):
+    def bin_plot(self,binsize,save=False,show=True,ax=None):
         """
         run bin_plot and then plot the data
 
@@ -505,11 +538,15 @@ class analysis:
             return
 
         df=self.bin_data(binsize,save=save)
+        
+        if ax is None: _,ax=py.subplots(1,1)
         for i in df.columns.get_level_values('cond'):
-            py.errorbar(x=df.index,y=100*df['mean'][i],yerr=100*df['sem'][i])
-        py.xlabel('Time Relative to Stimulus (s)')
-        py.ylabel(r'$\frac{\Delta F}{F}$ (%)')
-        py.show()
+            ax.errorbar(x=df.index,y=100*df['mean'][i],yerr=100*df['sem'][i])
+        ax.set_xlabel('Time Relative to Stimulus (s)')
+        ax.set_ylabel(r'$\frac{\Delta F}{F}$ (%)')
+        
+        if show:
+            py.show()
 
 
     def bin_data(self,binsize,save=False):
@@ -827,4 +864,5 @@ def load_analysis(fpath):
         raise Exception('Unrecognized file format!')
     
     a.file_loc=fpath.parent
+    a.compute()
     return a

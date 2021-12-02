@@ -122,7 +122,7 @@ def stream_plot(ylim:list,mouse1=None,mouse2=None):
 
         
 
-def open_save(path,format='npy',mouse1=None,mouse2=None,m1_490='x19A',m1_405='x15A',m2_490='x29B',m2_405='x25B'):
+def open_save(path,format='npy',mouse1=None,mouse2=None,t_stim1=None, t_stim2=None, cond1=None,cond2=None, m1_490='x19A',m1_405='x15A',m2_490='x29B',m2_405='x25B'):
     """
     pull and save the data produced from Synapse in a format we can read in python
 
@@ -151,10 +151,18 @@ def open_save(path,format='npy',mouse1=None,mouse2=None,m1_490='x19A',m1_405='x1
 
     data=[]
     if mouse1:
-        m1=mouse_data(mouse1, raw_data.streams[m1_490].data, raw_data.streams[m1_405].data, raw_data.streams[m1_490].fs,t_start=raw_data.info.start_date) #create an instance of the data class
+        m1=mouse_data(mouse1, raw_data.streams[m1_490].data, 
+                      raw_data.streams[m1_405].data, 
+                      raw_data.streams[m1_490].fs,
+                      t_start=raw_data.info.start_date,
+                      t_stim=t_stim1) #create an instance of the data class
         data.append(m1)
     if mouse2:
-        m2=mouse_data(mouse2, raw_data.streams[m2_490].data, raw_data.streams[m2_405].data, raw_data.streams[m2_490].fs,t_start=raw_data.info.start_date)
+        m2=mouse_data(mouse2, raw_data.streams[m2_490].data, 
+                      raw_data.streams[m2_405].data, 
+                      raw_data.streams[m2_490].fs,
+                      t_start=raw_data.info.start_date,
+                      t_stim=t_stim2)
         data.append(m2)
 
     print('saving data...')
@@ -264,6 +272,10 @@ if __name__=='__main__':
     parser.add_argument('-m1_405',help='the name of the 405 channel for line 1', default='x15A')
     parser.add_argument('-m2_490',help='the name of the 490 channel for line 2', default='x29B')
     parser.add_argument('-m2_405',help='the name of the 405 channel for line 2', default='x25B')
+    parser.add_argument('-t_stim1', help='time offset in seconds of the stimulus time for mouse 1')
+    parser.add_argument('-t_stim2', help='time offset in seconds of the stimulus time for mouse 2')
+    parser.add_argument('-t_stim1', help='condition for mouse 1')
+    parser.add_argument('-t_stim2', help='condition for mouse 2')
     parser.add_argument('-ylim',help='initial y axis limits for streaming and plotting', nargs=2, default=[0.,3.], type=float)
     parser.add_argument('-format',help='file format to save the data to (either npy or json)', default='npy')
     args=parser.parse_args()
@@ -272,27 +284,35 @@ if __name__=='__main__':
         parser.error('must enter the identifier for at least one mouse')
     
     if args.path:
-        d=open_save(args.path, 
-                    format=args.format,
-                    mouse1=args.mouse1, 
-                    mouse2=args.mouse2, 
-                    m1_490=args.m1_490, 
-                    m1_405=args.m1_405, 
-                    m2_490=args.m2_490, 
-                    m2_405=args.m2_405)
-        fig , ax = py.subplots( *([2]*len(d)) )
-        if len(d)==2:
-            ax[0,0].set_title(d[0].mouse_id)
-            ax[0,0].plot(d[0].t,d[0].F490,'g', linewidth=0.5)
-            ax[0,1].set_title(d[1].mouse_id)
-            ax[0,1].plot(d[1].t,d[1].F490,'g', linewidth=0.5)
-            ax[1,0].plot(d[0].t,8*np.array(d[0].F405),'r', linewidth=0.5)
-            ax[1,1].plot(d[1].t,8*np.array(d[1].F405),'r', linewidth=0.5)
-        elif len(d)==1:
-            ax[0].set_title(d[0].mouse_id)
-            ax[0].plot(d[0].t,d[0].F490,'g', linewidth=0.5)
-            ax[1].plot(d[0].t,8*d[0].F405,'r', linewidth=0.5)
-        py.show()
+        if not (args.t_stim1 or args.t_stim2):
+            parser.error('must enter a stimulus time when exporting data')
+        else:
+            d=open_save(args.path, 
+                        format=args.format,
+                        mouse1=args.mouse1, 
+                        mouse2=args.mouse2,
+                        t_stim1=args.t_stim1,
+                        t_stim2=args.t_stim2,
+                        cond1=args.cond1,
+                        cond2=args.cond2,
+                        m1_490=args.m1_490, 
+                        m1_405=args.m1_405, 
+                        m2_490=args.m2_490, 
+                        m2_405=args.m2_405)
+            
+            fig , ax = py.subplots( *([2]*len(d)) )
+            if len(d)==2:
+                ax[0,0].set_title(d[0].mouse_id)
+                ax[0,0].plot(d[0].t,d[0].F490,'g', linewidth=0.5)
+                ax[0,1].set_title(d[1].mouse_id)
+                ax[0,1].plot(d[1].t,d[1].F490,'g', linewidth=0.5)
+                ax[1,0].plot(d[0].t,8*np.array(d[0].F405),'r', linewidth=0.5)
+                ax[1,1].plot(d[1].t,8*np.array(d[1].F405),'r', linewidth=0.5)
+            elif len(d)==1:
+                ax[0].set_title(d[0].mouse_id)
+                ax[0].plot(d[0].t,d[0].F490,'g', linewidth=0.5)
+                ax[1].plot(d[0].t,8*d[0].F405,'r', linewidth=0.5)
+            py.show()
     else:
         stream_plot(args.ylim,mouse1=args.mouse1,mouse2=args.mouse2)
         
