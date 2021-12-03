@@ -93,7 +93,7 @@ def load_append_save_cli():
         cont=input('Would you like to continue adding?[y/n]').lower()
         if cont in ['n','no'] :
             appending=False
-    a.compute_means()
+    a.compute()
     a.save()
 
 def update_params_cli():
@@ -117,7 +117,6 @@ def update_params_cli():
         a.file_format=['npy','json'][-1+int(input( 'What file format would you like? 1. npy, 2. json [1/2]: ' ))]
     elif choice=='5':
         a.t_prestim=int(input( 'Enter the desired pre-stimulus time in seconds:' ))
-        
 
 def remove_mouse_cli():
     a.remove_mouse(input("Enter the id of the mouse you'd like to remove: "))
