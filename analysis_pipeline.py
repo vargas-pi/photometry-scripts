@@ -727,7 +727,7 @@ class analysis:
 
         peaks={}
         for i,v in pk_inds.items():
-            y=self.all_490[0:].iloc[v-5:v+6][i].dropna()
+            y=self.all_490.loc[0:].iloc[v-5:v+6][i].dropna()
             peaks.update({i:np.trapz(x=y.index,y=y.values)})
 
         peaks=pd.DataFrame(pd.Series(peaks), columns=[f'{extrema} ∆F/F'])
@@ -769,13 +769,16 @@ class analysis:
             print('Must have usable data loaded in the analysis first!')
             return
 
-        pk_inds=self.mean_490.loc[0:].apply(lambda x: x.argmax(skipna=True))
+        if extrema=='max':
+            pk_inds=self.mean_490.loc[0:].apply(lambda x: x.argmax(skipna=True))
+        elif extrema=='min':
+            pk_inds=self.mean_490.loc[0:].apply(lambda x: x.argmin(skipna=True))
         if ((self.t_endrec-pk_inds)<=20).any(): print(f'Warning! {extrema} is on the edge of the recording')
         pk_inds[(self.t_endrec-pk_inds)<20]-=20
 
         peaks={}
         for i,v in pk_inds.items():
-            y=self.all_490[0:].iloc[v-10:v+10][i].dropna()
+            y=self.all_490.loc[0:].iloc[v-10:v+10][i].dropna()
             y=y.apply(lambda x: np.trapz(x=x.dropna().index,y=x.dropna().values))
             y.index=y.index.map(lambda x: (i,x))
             peaks.update(y.to_dict())
