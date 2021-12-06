@@ -317,8 +317,9 @@ class analysis:
 
                 #clear the dataframes
                 cols=pd.MultiIndex(levels=[[]]*3,codes=[[]]*3,names=('cond','mouse','trial'))
-                self.all_490=pd.DataFrame([],columns=cols,index=self.t)
-                self.all_405=pd.DataFrame([],columns=cols,index=self.t)
+
+                self.all_490=pd.DataFrame([],columns=cols)
+                self.all_405=pd.DataFrame([],columns=cols)
 
                 for i,r in enumerate(self.raw_data): #loop through the raw data and redo the normalization/downsampling
 
@@ -332,6 +333,9 @@ class analysis:
                     self.all_490[m.cond,m.mouse_id,m.trial]=m.F490
                     self.all_405[m.cond,m.mouse_id,m.trial]=m.F405
 
+                self.all_490.index=self.t
+                self.all_405.index=self.t
+                
                 self.conditions=self.all_490.columns.get_level_values('cond')
 
                 #consolidate dataframe by averaging within mice within condition
