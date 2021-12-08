@@ -498,9 +498,9 @@ class analysis:
         ls=[]
         if ax is None: _,ax=py.subplots(1,1)
         if cond is not None:
-            ax.plot(100*self.all_490.loc[:,cond,mouse] , 'g', linewidth=0.5)
+            ax.plot(100*self.all_490.loc[:,idx[cond,mouse]] , 'g', linewidth=0.5)
             if plot_405:
-                ax.plot(100*self.all_405.loc[:,cond,mouse], 'r', linewidth=0.5)
+                ax.plot(100*self.all_405.loc[:,idx[cond,mouse]], 'r', linewidth=0.5)
         else:
             d=100*self.all_490.loc[:,idx[:,mouse]]
             d.columns=d.columns.get_level_values('cond')
