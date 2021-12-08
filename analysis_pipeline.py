@@ -454,19 +454,23 @@ class analysis:
             print('Must have usable data loaded in the analysis first!')
             return
         if ax is None: _,ax=py.subplots(1,1)
+
         n_conds=self.all_490.columns.get_level_values('cond').unique().size
-        g={c:py.cm.Greens(i) for i,c in zip(np.linspace(.3,.7,n_conds),self.mean_490)}
-        r={c:py.cm.Reds(i) for i,c in zip(np.linspace(.3,.7,n_conds),self.mean_490)}
+        g={c:py.cm.Greens(i) for i,c in zip(np.linspace(.4,.75,n_conds),self.mean_490)}
+        r={c:py.cm.Reds(i) for i,c in zip(np.linspace(.4,.75,n_conds),self.mean_490)}
         ls=[]
+        for i in self.mean_490:
+            ax.fill_between(self.t, 100*(self.mean_405[i] + self.err_405[i]),
+                            100*(self.mean_405[i] - self.err_405[i]), color=r[i],alpha=0.2  )
+            ax.plot(self.t, 100*self.mean_405[i], color=r[i], linewidth=.5)
+        
         for i in self.mean_490:
             ax.fill_between(self.t, 100*self.mean_490[i] + 100*self.err_490[i],
                             100*(self.mean_490[i] - self.err_490[i]), color=g[i],alpha=0.2 )
-            ax.fill_between(self.t, 100*(self.mean_405[i] + self.err_405[i]),
-                            100*(self.mean_405[i] - self.err_405[i]), color=r[i],alpha=0.2  )
-            l,=ax.plot(self.t, 100*self.mean_490[i] , color=g[i], linewidth=0.5,label=i)
-            ax.plot(self.t, 100*self.mean_405[i], color=r[i], linewidth=0.5)
+            l,=ax.plot(self.t, 100*self.mean_490[i] , color=g[i], linewidth=.5,label=i)
             ls.append(l)
-        ax.legend()
+        
+        if n_conds>1: ax.legend()
         ax.axvline(x=0, c='k',ls='--', alpha=0.5)
         ax.set_xlabel('Time Relative to Stimulus (s)')
         ax.set_ylabel(r'$\frac{\Delta F}{F}$ (%)')
@@ -503,12 +507,14 @@ class analysis:
             d5=100*self.all_405.loc[:,idx[:,mouse]]
             d5.columns=d.columns.get_level_values('cond')
 
-            ax.set_prop_cycle(color=[py.cm.Greens(i) for i in np.linspace(.3,.7,n_conds)])
-            d.plot.line(linewidth=0.5,ax=ax)
             if plot_405:
-                ax.set_prop_cycle(color=[py.cm.Reds(i) for i in np.linspace(.3,.7,n_conds)])
+                ax.set_prop_cycle(color=[py.cm.Reds(i) for i in np.linspace(.4,.75,n_conds)])
                 d5.plot.line(linewidth=0.5,ax=ax)
-        ax.legend()
+            
+            ax.set_prop_cycle(color=[py.cm.Greens(i) for i in np.linspace(.4,.75,n_conds)])
+            d.plot.line(linewidth=0.5,ax=ax)
+        
+        if n_conds>1: ax.legend()
         ax.axvline(x=0, c='k',ls='--', alpha=0.5)
         ax.set_xlabel('Time Relative to Stimulus (s)')
         ax.set_ylabel(r'$\frac{\Delta F}{F}$ (%)')
@@ -519,7 +525,7 @@ class analysis:
         return ax
 
         
-    def plot_490(self,show=True,ax=None):
+    def plot_490(self,show=True,ax=None,cm=py.cm.viridis):
         """
         plot the average normalized 490 signal with error
         """
@@ -530,12 +536,13 @@ class analysis:
         
         if ax is None: _,ax=py.subplots(1,1)
         n_conds=self.all_490.columns.get_level_values('cond').unique().size
-        g={c:py.cm.Greens(i) for i,c in zip(np.linspace(.3,.7,n_conds),self.mean_490)}
+        g={c:cm(i) for i,c in zip(np.linspace(.3,.7,n_conds),self.mean_490)}
         for i in self.mean_490:
             ax.fill_between(self.t, 100*self.mean_490[i] + 100*self.err_490[i],
                             100*(self.mean_490[i] - self.err_490[i]), color=g[i],alpha=0.2 )
             ax.plot(self.t, 100*self.mean_490[i] , color=g[i], linewidth=0.5,label=i)
-        ax.legend()
+        
+        if n_conds>1: ax.legend()
         ax.axvline(x=0, c='k',ls='--', alpha=0.5)
         ax.set_xlabel('Time Relative to Stimulus (s)')
         ax.set_ylabel(r'$\frac{\Delta F}{F}$ (%)')
@@ -546,7 +553,7 @@ class analysis:
         return ax
 
 
-    def bin_plot(self,binsize,save=False,show=True,ax=None):
+    def bin_plot(self,binsize,save=False,show=True,ax=None,cm=py.cm.viridis):
         """
         run bin_plot and then plot the data
 
@@ -569,11 +576,11 @@ class analysis:
 
         if ax is None: _,ax=py.subplots(1,1)
         n_conds=self.all_490.columns.get_level_values('cond').unique().size
-        g={c:py.cm.Greens(i) for i,c in zip(np.linspace(.3,.7,n_conds),self.mean_490)}
+        g={c:cm(i) for i,c in zip(np.linspace(.4,.75,n_conds),self.mean_490)}
         for i in df.columns.get_level_values('cond').unique():
             ax.errorbar(x=df.index,y=100*df['mean'][i],yerr=100*df['sem'][i],color=g[i],label=i)
 
-        ax.legend()
+        if n_conds>1: ax.legend()
         ax.set_xlabel('Time Relative to Stimulus (s)')
         ax.set_ylabel(r'$\frac{\Delta F}{F}$ (%)')
         
