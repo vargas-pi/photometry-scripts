@@ -1,5 +1,5 @@
 #TODO: i should write something to automate adding data from a bunch of files
-#TODO: need to make sure t_stim can be saved in import plot
+#TODO: raise actual errors instead of printing issues, from the cli we can use try, except clauses to catch the errors
 
 
 import matplotlib.pyplot as py
@@ -454,20 +454,27 @@ class analysis:
             print('Must have usable data loaded in the analysis first!')
             return
         if ax is None: _,ax=py.subplots(1,1)
-
+        n_conds=self.all_490.columns.get_level_values('cond').unique().size
+        g={c:py.cm.Greens(i) for i,c in zip(np.linspace(.3,.7,n_conds),self.mean_490)}
+        r={c:py.cm.Reds(i) for i,c in zip(np.linspace(.3,.7,n_conds),self.mean_490)}
+        ls=[]
         for i in self.mean_490:
             ax.fill_between(self.t, 100*self.mean_490[i] + 100*self.err_490[i],
-                            100*(self.mean_490[i] - self.err_490[i]), color='g',alpha=0.2 )
+                            100*(self.mean_490[i] - self.err_490[i]), color=g[i],alpha=0.2 )
             ax.fill_between(self.t, 100*(self.mean_405[i] + self.err_405[i]),
-                            100*(self.mean_405[i] - self.err_405[i]), color='r',alpha=0.2  )
-            ax.plot(self.t, 100*self.mean_490[i] , 'g', linewidth=0.5)
-            ax.plot(self.t, 100*self.mean_405[i], 'r', linewidth=0.5)
+                            100*(self.mean_405[i] - self.err_405[i]), color=r[i],alpha=0.2  )
+            l,=ax.plot(self.t, 100*self.mean_490[i] , color=g[i], linewidth=0.5,label=i)
+            ax.plot(self.t, 100*self.mean_405[i], color=r[i], linewidth=0.5)
+            ls.append(l)
+        ax.legend()
         ax.axvline(x=0, c='k',ls='--', alpha=0.5)
         ax.set_xlabel('Time Relative to Stimulus (s)')
         ax.set_ylabel(r'$\frac{\Delta F}{F}$ (%)')
 
         if show:
             py.show()
+
+        return ax
 
     def plot_ind_trace(self,mouse:str,cond=None,plot_405=True,ax=None,show=True):
         """
@@ -481,23 +488,35 @@ class analysis:
         if not self.loaded:
             print('Must have usable data loaded in the analysis first!')
             return
-        
+
+        n_conds=self.all_490.columns.get_level_values('cond').unique().size
+
+        ls=[]
         if ax is None: _,ax=py.subplots(1,1)
         if cond is not None:
             ax.plot(100*self.all_490.loc[:,cond,mouse] , 'g', linewidth=0.5)
             if plot_405:
                 ax.plot(100*self.all_405.loc[:,cond,mouse], 'r', linewidth=0.5)
         else:
-            #TODO: make the 490 traces different shades of green for each condition and add a legend
-            ax.plot(100*self.all_490.loc[:,idx[:,mouse]] , 'g', linewidth=0.5)
+            d=100*self.all_490.loc[:,idx[:,mouse]]
+            d.columns=d.columns.get_level_values('cond')
+            d5=100*self.all_405.loc[:,idx[:,mouse]]
+            d5.columns=d.columns.get_level_values('cond')
+
+            ax.set_prop_cycle(color=[py.cm.Greens(i) for i in np.linspace(.3,.7,n_conds)])
+            d.plot.line(linewidth=0.5,ax=ax)
             if plot_405:
-                ax.plot(100*self.all_405.loc[:,idx[:,mouse]], 'r', linewidth=0.5)
+                ax.set_prop_cycle(color=[py.cm.Reds(i) for i in np.linspace(.3,.7,n_conds)])
+                d5.plot.line(linewidth=0.5,ax=ax)
+        ax.legend()
         ax.axvline(x=0, c='k',ls='--', alpha=0.5)
         ax.set_xlabel('Time Relative to Stimulus (s)')
         ax.set_ylabel(r'$\frac{\Delta F}{F}$ (%)')
         
         if show:
             py.show()
+
+        return ax
 
         
     def plot_490(self,show=True,ax=None):
@@ -510,16 +529,21 @@ class analysis:
             return
         
         if ax is None: _,ax=py.subplots(1,1)
+        n_conds=self.all_490.columns.get_level_values('cond').unique().size
+        g={c:py.cm.Greens(i) for i,c in zip(np.linspace(.3,.7,n_conds),self.mean_490)}
         for i in self.mean_490:
             ax.fill_between(self.t, 100*self.mean_490[i] + 100*self.err_490[i],
-                            100*(self.mean_490[i] - self.err_490[i]), color='g',alpha=0.2 )
-            ax.plot(self.t, 100*self.mean_490[i] , 'g', linewidth=0.5)
+                            100*(self.mean_490[i] - self.err_490[i]), color=g[i],alpha=0.2 )
+            ax.plot(self.t, 100*self.mean_490[i] , color=g[i], linewidth=0.5,label=i)
+        ax.legend()
         ax.axvline(x=0, c='k',ls='--', alpha=0.5)
         ax.set_xlabel('Time Relative to Stimulus (s)')
         ax.set_ylabel(r'$\frac{\Delta F}{F}$ (%)')
 
         if show:
             py.show()
+        
+        return ax
 
 
     def bin_plot(self,binsize,save=False,show=True,ax=None):
@@ -544,13 +568,19 @@ class analysis:
         df,_=self.bin_data(binsize,save=save)
 
         if ax is None: _,ax=py.subplots(1,1)
-        for i in df.columns.get_level_values('cond'):
-            ax.errorbar(x=df.index,y=100*df['mean'][i],yerr=100*df['sem'][i])
+        n_conds=self.all_490.columns.get_level_values('cond').unique().size
+        g={c:py.cm.Greens(i) for i,c in zip(np.linspace(.3,.7,n_conds),self.mean_490)}
+        for i in df.columns.get_level_values('cond').unique():
+            ax.errorbar(x=df.index,y=100*df['mean'][i],yerr=100*df['sem'][i],color=g[i],label=i)
+
+        ax.legend()
         ax.set_xlabel('Time Relative to Stimulus (s)')
         ax.set_ylabel(r'$\frac{\Delta F}{F}$ (%)')
         
         if show:
             py.show()
+        
+        return ax
 
 
     def bin_data(self,binsize,save=False):
@@ -699,7 +729,7 @@ class analysis:
         
         return aucs
 
-    def ind_peak_df_f(self,extrema:str,save=False):
+    def ind_peak_df_f(self,extrema:str,save=False,pr=True):
         """
         determine either the min or max ∆f/f and time for each mouse separately
         TODO: we should also be saving the times of the peaks
@@ -726,6 +756,9 @@ class analysis:
             pk_inds=self.all_490.loc[0:].apply(lambda x: x.argmin(skipna=True))
         else:
             print('Unrecognized extrema!')
+            return
+
+        
         if ((self.t_endrec-pk_inds)<=20).any(): print(f'Warning! {extrema} is on the edge of the recording')
         pk_inds[self.t_endrec-pk_inds<=20]-=20
 
@@ -735,12 +768,13 @@ class analysis:
             peaks.update({i:np.trapz(x=y.index,y=y.values)})
 
         peaks=pd.DataFrame(pd.Series(peaks), columns=[f'{extrema} ∆F/F'])
-        pk_times=pd.DataFrame(pk_inds.apply(lambda x: self.all_490[0:].index[x]), columns=['time (s)'])
+        pk_times=pd.DataFrame(pk_inds.apply(lambda x: self.all_490.loc[0:].index[x]), columns=['time (s)'])
 
         peaks=pd.concat([peaks,pk_times],axis=1)
 
-        print(peaks)
-        print('')
+        if pr:
+            print(peaks)
+            print('')
         if not hasattr(self,'pks'):
             self.pks={}
 
@@ -753,7 +787,7 @@ class analysis:
         return peaks
 
 
-    def mean_peak_df_f(self,extrema:str,save=False):
+    def mean_peak_df_f(self,extrema:str,save=False,pr=True):
         """
         determine either the min or max ∆f/f in the mean signal and identify the values of the normed 490
         at this time point in each individual mouse
@@ -777,24 +811,30 @@ class analysis:
             pk_inds=self.mean_490.loc[0:].apply(lambda x: x.argmax(skipna=True))
         elif extrema=='min':
             pk_inds=self.mean_490.loc[0:].apply(lambda x: x.argmin(skipna=True))
+        else:
+            print('Unrecognized extrema!')
+            return
+
         if ((self.t_endrec-pk_inds)<=20).any(): print(f'Warning! {extrema} is on the edge of the recording')
         pk_inds[(self.t_endrec-pk_inds)<20]-=20
 
         peaks={}
         for i,v in pk_inds.items():
             y=self.all_490.loc[0:].iloc[v-10:v+10][i].dropna()
+            
             y=y.apply(lambda x: np.trapz(x=x.dropna().index,y=x.dropna().values))
             y.index=y.index.map(lambda x: (i,x))
             peaks.update(y.to_dict())
 
         peaks=pd.DataFrame(pd.Series(peaks), columns=[f'{extrema} ∆F/F'])
-        ts=pk_inds.apply(lambda x: self.all_490[0:].index[x])
-        peaks['ts']=np.nan
-        for i in ts.index:
-            peaks.loc[i,:]['ts']=ts[i]
 
-        print('')
-        print(peaks)
+        ts=pk_inds.apply(lambda x: self.all_490.loc[0:].index[x])
+        peaks['ts']=ts.loc[peaks.index.get_level_values(0)].values
+
+        if pr:
+            print('')
+            print(peaks)
+
         if not hasattr(self,'mean_pks'):
             self.mean_pks={}
 
