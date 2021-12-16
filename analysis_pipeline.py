@@ -421,15 +421,14 @@ class analysis:
             self.excluded_raw=[]
         
         #NOTE: this is very inefficient, need a better way to do this
+        raw_data=pd.Series({(x.cond,x.mouse_id):x for x in self.raw_data})
+        
         if cond is None:
-            excl_raw=list(filter(lambda x: x.mouse_id==mouse, self.raw_data))
-            self.excluded_raw.extend(excl_raw)
-            self.raw_data=list(filter(lambda x: x.mouse_id!=mouse, self.raw_data))
+            self.excluded_raw.extend(raw_data.loc[:,mouse].to_list())
+            self.raw_data=raw_data.drop(index=[mouse],level=1).to_list()
         else:
-            #this isn't working for some reason, need to fix
-            excl_raw=list(filter(lambda x: (x.mouse_id==mouse)&(x.cond==cond), self.raw_data))
-            self.excluded_raw.extend(excl_raw)
-            self.raw_data=list(filter(lambda x: ~((x.mouse_id==mouse)&(x.cond==cond)), self.raw_data))
+            self.excluded_raw.extend([raw_data.loc[cond,mouse]])
+            self.raw_data=raw_data.drop(index=(cond,mouse)).to_list()
 
         if len(self.raw_data)==0:
             self.loaded=False
@@ -449,14 +448,15 @@ class analysis:
         if not hasattr(self,'excluded_raw') or len(self.excluded_raw)==0:
             print('this analysis has no excluded data')
             return
+        excl_raw=pd.Series({(x.cond,x.mouse_id):x for x in self.excluded_raw})
+
         if cond is None:
-            ret_raw=list(filter(lambda x: x.mouse_id==mouse, self.excluded_raw))
-            self.raw_data.extend(ret_raw)
-            self.excluded_raw=list(filter(lambda x: x.mouse_id!=mouse, self.excluded_raw))
+            self.raw_data.extend(excl_raw.loc[:,mouse].to_list())
+            self.excluded_raw=excl_raw.drop(index=[mouse],level=1).to_list()
+
         else:
-            ret_raw=list(filter(lambda x: (x.mouse_id==mouse)&(x.cond==cond), self.excluded_raw))
-            self.raw_data.extend(ret_raw)
-            self.excluded_raw=list(filter(lambda x: ~((x.mouse_id==mouse)&(x.cond==cond)), self.excluded_raw))
+            self.raw_data.extend([excl_raw.loc[cond,mouse]])
+            self.excluded_raw=excl_raw.drop(index=(cond,mouse)).to_list()
 
         self.loaded=True
 
