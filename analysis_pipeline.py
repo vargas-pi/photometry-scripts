@@ -248,9 +248,7 @@ class analysis:
             d[i].trial=len(list(filter( lambda x: x==d[i].mouse_id, self.raw_data)))
         
         self.raw_data.extend(d)
-        self.recompute()
         self.loaded=True
-        self.save()
 
     def normalize_downsample(self,rec:mouse_data,plot=True):
         """
@@ -409,7 +407,7 @@ class analysis:
         savemat(os.path.join(self.file_loc,'analysis_'+'_'.join([r.mouse_id for r in self.raw_data])+'.mat'),d)
 
 
-    def remove_mouse(self,mouse:str):
+    def remove_mouse(self,mouse:str,cond=None,recompute=True):
         """
         remove a mouse from the analysis
 
@@ -419,20 +417,27 @@ class analysis:
             the id of the mouse to remove
         """
 
-        excl_raw=list(filter(lambda x: x.mouse_id==mouse, self.raw_data))
-
         if not hasattr(self,'excluded_raw'):
             self.excluded_raw=[]
-
-        self.excluded_raw.extend(excl_raw)
-        self.raw_data=list(filter(lambda x: x.mouse_id!=mouse, self.raw_data))
+        
+        #NOTE: this is very inefficient, need a better way to do this
+        if cond is None:
+            excl_raw=list(filter(lambda x: x.mouse_id==mouse, self.raw_data))
+            self.excluded_raw.extend(excl_raw)
+            self.raw_data=list(filter(lambda x: x.mouse_id!=mouse, self.raw_data))
+        else:
+            #this isn't working for some reason, need to fix
+            excl_raw=list(filter(lambda x: (x.mouse_id==mouse)&(x.cond==cond), self.raw_data))
+            self.excluded_raw.extend(excl_raw)
+            self.raw_data=list(filter(lambda x: ~((x.mouse_id==mouse)&(x.cond==cond)), self.raw_data))
 
         if len(self.raw_data)==0:
             self.loaded=False
-            
-        self.compute()
+        
+        if recompute:
+            self.compute()
 
-    def retrieve_excluded(self,mouse:str):
+    def retrieve_excluded(self,mouse:str,cond=None,recompute=True):
         """
         retrieve an excluded mouse from the analysis
 
@@ -444,13 +449,19 @@ class analysis:
         if not hasattr(self,'excluded_raw') or len(self.excluded_raw)==0:
             print('this analysis has no excluded data')
             return
+        if cond is None:
+            ret_raw=list(filter(lambda x: x.mouse_id==mouse, self.excluded_raw))
+            self.raw_data.extend(ret_raw)
+            self.excluded_raw=list(filter(lambda x: x.mouse_id!=mouse, self.excluded_raw))
+        else:
+            ret_raw=list(filter(lambda x: (x.mouse_id==mouse)&(x.cond==cond), self.excluded_raw))
+            self.raw_data.extend(ret_raw)
+            self.excluded_raw=list(filter(lambda x: ~((x.mouse_id==mouse)&(x.cond==cond)), self.excluded_raw))
 
-        ret_raw=list(filter(lambda x: x.mouse_id==mouse, self.excluded_raw))
-        self.raw_data.extend(ret_raw)
-        self.excluded_raw=list(filter(lambda x: x.mouse_id!=mouse, self.excluded_raw))
         self.loaded=True
 
-        self.compute()
+        if recompute:
+            self.compute()
 
 
     def plot_both(self,cond=None, cm405='Reds',cm490='Greens',c490=None,c405=None,show=True,ax=None,alpha=.3,figsize=(12,5)):
