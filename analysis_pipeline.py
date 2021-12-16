@@ -12,6 +12,7 @@ from pathlib import Path
 from copy import deepcopy
 from scipy.io import savemat
 from pandas import IndexSlice as idx
+import seaborn as sns
 
 
 
@@ -350,6 +351,13 @@ class analysis:
                 self.mean_405=self.all_405.groupby('cond',axis=1).mean()
                 self.err_405=self.all_405.groupby('cond',axis=1).sem()
 
+                #update properties of the analysis
+                self.mice_by_cond=self.all_490.groupby('cond',axis=1).apply(lambda x:x.columns.get_level_values('mouse').tolist()).to_dict()
+                self.n_by_cond=self.all_490.groupby('cond',axis=1).apply(lambda x:x.columns.get_level_values('mouse').size).to_dict()
+                self.mice=self.all_490.columns.get_level_values('mouse').unique()
+                self.n_tot=self.mice.size
+                self.conds=self.all_490.columns.get_level_values('cond').unique()
+
                 print('successful')
 
     def save(self,file_format=False):
@@ -445,7 +453,7 @@ class analysis:
         self.compute()
 
 
-    def plot_both(self,show=True,ax=None):
+    def plot_both(self,cond=None, cm405='Reds',cm490='Greens',c490=None,c405=None,show=True,ax=None,alpha=.3,figsize=(12,5)):
         """
         plot the average normalized 490 and 405 signal with error
         """
@@ -453,34 +461,61 @@ class analysis:
         if not self.loaded:
             print('Must have usable data loaded in the analysis first!')
             return
-        if ax is None: _,ax=py.subplots(1,1)
 
-        n_conds=self.all_490.columns.get_level_values('cond').unique().size
-        g={c:py.cm.Greens(i) for i,c in zip(np.linspace(.4,.75,n_conds),self.mean_490)}
-        r={c:py.cm.Reds(i) for i,c in zip(np.linspace(.4,.75,n_conds),self.mean_490)}
-        ls=[]
-        for i in self.mean_490:
-            ax.fill_between(self.t, 100*(self.mean_405[i] + self.err_405[i]),
-                            100*(self.mean_405[i] - self.err_405[i]), color=r[i],alpha=0.2  )
-            ax.plot(self.t, 100*self.mean_405[i], color=r[i], linewidth=.5)
+
+
+        c490=sns.color_palette( cm490, 1 )[0] if c490 is None else c490
+        c405=sns.color_palette( cm405, 1 )[0] if c405 is None else c405
         
-        for i in self.mean_490:
-            ax.fill_between(self.t, 100*self.mean_490[i] + 100*self.err_490[i],
-                            100*(self.mean_490[i] - self.err_490[i]), color=g[i],alpha=0.2 )
-            l,=ax.plot(self.t, 100*self.mean_490[i] , color=g[i], linewidth=.5,label=i)
-            ls.append(l)
+        if cond is not None:
+            if ax is None: _,ax=py.subplots(1,1)
+            ax.fill_between(self.t, 100*(self.mean_405[cond] + self.err_405[cond]),
+                            100*(self.mean_405[cond] - self.err_405[cond]), color=c405,alpha=alpha  )
+            ax.plot(self.t, 100*self.mean_405[cond], color=c405, linewidth=.5)
+            ax.fill_between(self.t, 100*self.mean_490[cond] + 100*self.err_490[cond],
+                            100*(self.mean_490[cond] - self.err_490[cond]), color=c490,alpha=alpha )
+            ax.plot(self.t, 100*self.mean_490[cond] , color=c490, linewidth=.5)
         
-        if n_conds>1: ax.legend()
-        ax.axvline(x=0, c='k',ls='--', alpha=0.5)
-        ax.set_xlabel('Time Relative to Stimulus (s)')
-        ax.set_ylabel(r'$\frac{\Delta F}{F}$ (%)')
+        else:
+            if ax is None:
+                _,ax=py.subplots(1,self.conds.size,figsize=figsize)
+            else:
+                try:
+                    if ax.size<self.conds.size:
+                        print('provided axes have invalid dimensions. creating a new one...')
+                        _,ax=py.subplots(1,self.conds.size,figsize=figsize)
+                except AttributeError:
+                    if self.conds.size>1:
+                        print('provided axes have invalid dimensions. creating a new one...')
+                        _,ax=py.subplots(1,self.conds.size,figsize=figsize)
+
+            bnds=[]
+            for j,i in enumerate(self.conds):
+                ax.flatten()[j].fill_between(self.t, 100*(self.mean_405[i] + self.err_405[i]),
+                                100*(self.mean_405[i] - self.err_405[i]), color=c405,alpha=alpha  )
+                ax.flatten()[j].plot(self.t, 100*self.mean_405[i], color=c405, linewidth=.5)
+                bnds.append(ax.flatten()[j].get_ylim())
+            
+            for j,i in enumerate(self.conds):
+                ax.flatten()[j].fill_between(self.t, 100*self.mean_490[i] + 100*self.err_490[i],
+                                100*(self.mean_490[i] - self.err_490[i]), color=c490,alpha=alpha)
+                ax.flatten()[j].plot(self.t, 100*self.mean_490[i] , color=c490, linewidth=.5,label=i)
+                bnds.append(ax.flatten()[j].get_ylim())
+                ax.flatten()[j].set_title(i)
+                ax.flatten()[j].set_ylabel(r'$\frac{\Delta F}{F}$ (%)')
+                ax.flatten()[j].axvline(x=0, c='k',ls='--', alpha=0.5)
+            ax.flatten()[-1].set_xlabel('Time Relative to Stimulus (s)')
+
+            mins,maxes=np.array(bnds).T
+            for i in range(self.conds.size): ax.flatten()[i].set_ylim(min(mins),max(maxes))
+
 
         if show:
             py.show()
 
         return ax
 
-    def plot_ind_trace(self,mouse:str,cond=None,plot_405=True,ax=None,show=True):
+    def plot_ind_trace(self,mouse:str,cond=None,cm405='Reds',cm490='Greens',c490=None,c405=None,plot_405=True,ax=None,show=True):
         """
         plot the individual trace for a given mouse
 
@@ -493,14 +528,16 @@ class analysis:
             print('Must have usable data loaded in the analysis first!')
             return
 
-        n_conds=self.all_490.columns.get_level_values('cond').unique().size
-
-        ls=[]
         if ax is None: _,ax=py.subplots(1,1)
+        cm490=sns.color_palette(cm490,self.conds.size)
+        cm405=sns.color_palette(cm405,self.conds.size)
+        
         if cond is not None:
-            ax.plot(100*self.all_490.loc[:,idx[cond,mouse]] , 'g', linewidth=0.5)
+            c490=cm490[0] if c490 is None else c490
+            c405=cm405[0] if c405 is None else c405
+            ax.plot(100*self.all_490.loc[:,idx[cond,mouse]] , color=c490, linewidth=0.5)
             if plot_405:
-                ax.plot(100*self.all_405.loc[:,idx[cond,mouse]], 'r', linewidth=0.5)
+                ax.plot(100*self.all_405.loc[:,idx[cond,mouse]], color=c405, linewidth=0.5)
         else:
             d=100*self.all_490.loc[:,idx[:,mouse]]
             d.columns=d.columns.get_level_values('cond')
@@ -508,13 +545,13 @@ class analysis:
             d5.columns=d.columns.get_level_values('cond')
 
             if plot_405:
-                ax.set_prop_cycle(color=[py.cm.Reds(i) for i in np.linspace(.4,.75,n_conds)])
+                ax.set_prop_cycle(color=cm405)
                 d5.plot.line(linewidth=0.5,ax=ax)
             
-            ax.set_prop_cycle(color=[py.cm.Greens(i) for i in np.linspace(.4,.75,n_conds)])
+            ax.set_prop_cycle(color=cm490)
             d.plot.line(linewidth=0.5,ax=ax)
-        
-        if n_conds>1: ax.legend()
+            if self.conds.size>1: ax.legend()
+       
         ax.axvline(x=0, c='k',ls='--', alpha=0.5)
         ax.set_xlabel('Time Relative to Stimulus (s)')
         ax.set_ylabel(r'$\frac{\Delta F}{F}$ (%)')
@@ -525,7 +562,7 @@ class analysis:
         return ax
 
         
-    def plot_490(self,show=True,ax=None,cm=py.cm.viridis):
+    def plot_490(self,cond=None,show=True,ax=None,cm='Set2',c490=None,alpha=.3):
         """
         plot the average normalized 490 signal with error
         """
@@ -535,14 +572,20 @@ class analysis:
             return
         
         if ax is None: _,ax=py.subplots(1,1)
-        n_conds=self.all_490.columns.get_level_values('cond').unique().size
-        g={c:cm(i) for i,c in zip(np.linspace(.3,.7,n_conds),self.mean_490)}
-        for i in self.mean_490:
-            ax.fill_between(self.t, 100*self.mean_490[i] + 100*self.err_490[i],
-                            100*(self.mean_490[i] - self.err_490[i]), color=g[i],alpha=0.2 )
-            ax.plot(self.t, 100*self.mean_490[i] , color=g[i], linewidth=0.5,label=i)
+
+        cm=dict(zip(self.conds,sns.color_palette(cm,self.conds.size)))
         
-        if n_conds>1: ax.legend()
+        if cond is not None:
+            c490=cm[cond] if c490 is None else c490
+            ax.fill_between(self.t, 100*self.mean_490[cond] + 100*self.err_490[cond],
+                            100*(self.mean_490[cond] - self.err_490[cond]), color=c490,alpha=alpha )
+            ax.plot(self.t, 100*self.mean_490[cond] , color=c490, linewidth=0.5)
+        else:
+            for i in self.conds:
+                ax.fill_between(self.t, 100*self.mean_490[i] + 100*self.err_490[i],
+                                100*(self.mean_490[i] - self.err_490[i]), color=cm[i],alpha=alpha )
+                ax.plot(self.t, 100*self.mean_490[i] , color=cm[i], linewidth=0.5,label=i)
+                if self.conds.size>1: ax.legend()
         ax.axvline(x=0, c='k',ls='--', alpha=0.5)
         ax.set_xlabel('Time Relative to Stimulus (s)')
         ax.set_ylabel(r'$\frac{\Delta F}{F}$ (%)')
@@ -553,7 +596,7 @@ class analysis:
         return ax
 
 
-    def bin_plot(self,binsize,save=False,show=True,ax=None,cm=py.cm.viridis):
+    def bin_plot(self,binsize,save=False,cond=None,show=True,ax=None,cm='Set2',color=None):
         """
         run bin_plot and then plot the data
 
@@ -575,12 +618,16 @@ class analysis:
         df,_=self.bin_data(binsize,save=save)
 
         if ax is None: _,ax=py.subplots(1,1)
-        n_conds=self.all_490.columns.get_level_values('cond').unique().size
-        g={c:cm(i) for i,c in zip(np.linspace(.4,.75,n_conds),self.mean_490)}
-        for i in df.columns.get_level_values('cond').unique():
-            ax.errorbar(x=df.index,y=100*df['mean'][i],yerr=100*df['sem'][i],color=g[i],label=i)
+        cm=dict(zip(self.conds,sns.color_palette(cm,self.conds.size)))
 
-        if n_conds>1: ax.legend()
+        if cond is not None:
+            color=cm[cond] if color is None else color
+            ax.errorbar(x=df.index,y=100*df['mean'][cond],yerr=100*df['sem'][cond],color=color)
+        else:
+            for i in self.conds:
+                ax.errorbar(x=df.index,y=100*df['mean'][i],yerr=100*df['sem'][i],color=cm[i],label=i)
+                if self.conds.size>1: ax.legend()
+        
         ax.set_xlabel('Time Relative to Stimulus (s)')
         ax.set_ylabel(r'$\frac{\Delta F}{F}$ (%)')
         
@@ -644,7 +691,7 @@ class analysis:
         return binned_stats,binned
 
 
-    def bin_avg(self,start:int,end:int,save=False):
+    def bin_avg(self,start:int,end:int,save=False,pr=True):
         """
         average over a specified section of data for each mouse
 
@@ -672,9 +719,11 @@ class analysis:
 
         if aucs is not None:
             avgs=aucs/(end-start)
+            avgs=avgs.rename(columns={'AUC':'Mean ∆F/F'})
 
-            print(' ')
-            print(avgs)
+            if pr:
+                print(' ')
+                print(avgs)
 
             if not hasattr(self,'avgs'):
                 self.avgs={}
@@ -717,7 +766,7 @@ class analysis:
         try: 
             y=self.all_490.loc[start_t:end_t].copy()
             aucs=y.apply(lambda x: np.trapz(x=x.dropna().index,y=x.dropna().values),axis=0)
-            aucs=pd.DataFrame(aucs,columns=['Mean ∆F/F'])
+            aucs=pd.DataFrame(aucs,columns=['AUC'])
 
             if pr:
                 print(' ')
