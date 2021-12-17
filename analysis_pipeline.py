@@ -420,9 +420,7 @@ class analysis:
         if not hasattr(self,'excluded_raw'):
             self.excluded_raw=[]
         
-        #NOTE: this is very inefficient, need a better way to do this
         raw_data=pd.Series({(x.cond,x.mouse_id):x for x in self.raw_data})
-        
         if cond is None:
             self.excluded_raw.extend(raw_data.loc[:,mouse].to_list())
             self.raw_data=raw_data.drop(index=[mouse],level=1).to_list()
@@ -472,8 +470,6 @@ class analysis:
         if not self.loaded:
             print('Must have usable data loaded in the analysis first!')
             return
-
-
 
         c490=sns.color_palette( cm490, 1 )[0] if c490 is None else c490
         c405=sns.color_palette( cm405, 1 )[0] if c405 is None else c405
