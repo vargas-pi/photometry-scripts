@@ -131,7 +131,7 @@ class analysis:
 
     """
 
-    def __init__(self, norm_method,t_endrec,t_prestim=300,ex=4,file_format='npy',file_loc='analyses'):
+    def __init__(self, norm_method,t_endrec,t_prestim=300,ex=4,file_format='npy',file_loc='analyses',fname=None):
         """
         Parameters
         ----------
@@ -162,6 +162,7 @@ class analysis:
         self.file_loc=file_loc
         self.file_format=file_format
         self.t_prestim=t_prestim
+        self.fname=fname
 
         # NOTE: the following properties are no longer used but keeping here
         # in case of compatibility issues for earlier versions of the code
@@ -375,17 +376,22 @@ class analysis:
             
         if not os.path.exists(self.file_loc): os.mkdir(self.file_loc)
         ftype= self.file_format if not file_format else file_format
+        
+        if hasattr(self,'fname'):
+            fname= 'analysis_'+'_'.join(list(self.mice)) if self.fname==None else self.fname
+        else:
+            fname= 'analysis_'+'_'.join(list(self.mice))
 
         if ftype not in ['npy','json']:
             raise Exception('Unrecognized file format!')
 
         if ftype=='json':
-            with open(os.path.join(self.file_loc,'analysis_'+'_'.join([r.mouse_id for r in self.raw_data])+'.json'),'w') as f:
+            with open(os.path.join(self.file_loc,fname+'.json'),'w') as f:
                 print('saving the analysis...')
                 json.dump(self.__dict__,f,cls=Encoder)
                 print('save successful!')
         elif ftype=='npy':
-            np.save(os.path.join(self.file_loc,'analysis_'+'_'.join([r.mouse_id for r in self.raw_data])+'.npy'),self)
+            np.save(os.path.join(self.file_loc,fname+'.npy'),self)
             print('save successful!')
     
     def export_to_mat(self):
