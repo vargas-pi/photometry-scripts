@@ -155,6 +155,7 @@ class analysis:
         self.conditions=None
         self.norm_method=norm_method
         self.t_endrec=t_endrec
+        self.normed_data = []
         self.raw_data= []
         self.excluded_raw = []
         self.loaded=False
@@ -167,7 +168,6 @@ class analysis:
         # NOTE: the following properties are no longer used but keeping here
         # in case of compatibility issues for earlier versions of the code
         self.stim_ind=None 
-        self.normed_data = []
         self.excluded_normed = []
     """
     define a few getter and setter functions for relevant parameters in the 
@@ -320,7 +320,7 @@ class analysis:
 
                 self.all_490=pd.DataFrame([],columns=cols)
                 self.all_405=pd.DataFrame([],columns=cols)
-
+                self.normed_data = []
                 for i,r in enumerate(self.raw_data): #loop through the raw data and redo the normalization/downsampling
 
                     if not hasattr(r,'cond'): self.raw_data[i].cond,r.cond=0,0
@@ -330,6 +330,7 @@ class analysis:
                         self.raw_data[i].trial,r.trial=[max(mi)+1]*2
 
                     m=self.normalize_downsample(r,plot=False)
+                    self.normed_data.append(m)
                     self.all_490[m.cond,m.mouse_id,m.trial]=m.F490
                     self.all_405[m.cond,m.mouse_id,m.trial]=m.F405
 
