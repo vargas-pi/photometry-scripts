@@ -504,24 +504,44 @@ class analysis:
                         _,ax=py.subplots(1,self.conds.size,figsize=figsize)
 
             bnds=[]
-            for j,i in enumerate(self.conds):
-                ax.flatten()[j].fill_between(self.t, 100*(self.mean_405[i] + self.err_405[i]),
-                                100*(self.mean_405[i] - self.err_405[i]), color=c405,alpha=alpha  )
-                ax.flatten()[j].plot(self.t, 100*self.mean_405[i], color=c405, linewidth=.5)
-                bnds.append(ax.flatten()[j].get_ylim())
-            
-            for j,i in enumerate(self.conds):
-                ax.flatten()[j].fill_between(self.t, 100*self.mean_490[i] + 100*self.err_490[i],
-                                100*(self.mean_490[i] - self.err_490[i]), color=c490,alpha=alpha)
-                ax.flatten()[j].plot(self.t, 100*self.mean_490[i] , color=c490, linewidth=.5,label=i)
-                bnds.append(ax.flatten()[j].get_ylim())
-                ax.flatten()[j].set_title(i)
-                ax.flatten()[j].set_ylabel(r'$\frac{\Delta F}{F}$ (%)')
-                ax.flatten()[j].axvline(x=0, c='k',ls='--', alpha=0.5)
-            ax.flatten()[-1].set_xlabel('Time Relative to Stimulus (s)')
 
-            mins,maxes=np.array(bnds).T
-            for i in range(self.conds.size): ax.flatten()[i].set_ylim(min(mins),max(maxes))
+            if isinstance(ax, np.ndarray):
+                for j,i in enumerate(self.conds):
+                    ax.flatten()[j].fill_between(self.t, 100*(self.mean_405[i] + self.err_405[i]),
+                                    100*(self.mean_405[i] - self.err_405[i]), color=c405,alpha=alpha  )
+                    ax.flatten()[j].plot(self.t, 100*self.mean_405[i], color=c405, linewidth=.5)
+                    bnds.append(ax.flatten()[j].get_ylim())
+                
+                for j,i in enumerate(self.conds):
+                    ax.flatten()[j].fill_between(self.t, 100*self.mean_490[i] + 100*self.err_490[i],
+                                    100*(self.mean_490[i] - self.err_490[i]), color=c490,alpha=alpha)
+                    ax.flatten()[j].plot(self.t, 100*self.mean_490[i] , color=c490, linewidth=.5,label=i)
+                    bnds.append(ax.flatten()[j].get_ylim())
+                    ax.flatten()[j].set_title(i)
+                    ax.flatten()[j].set_ylabel(r'$\frac{\Delta F}{F}$ (%)')
+                    ax.flatten()[j].axvline(x=0, c='k',ls='--', alpha=0.5)
+                ax.flatten()[-1].set_xlabel('Time Relative to Stimulus (s)')
+                mins,maxes=np.array(bnds).T
+                for i in range(self.conds.size): ax.flatten()[i].set_ylim(min(mins),max(maxes))
+            
+            else:
+                for j,i in enumerate(self.conds):
+                    ax.fill_between(self.t, 100*(self.mean_405[i] + self.err_405[i]),
+                                    100*(self.mean_405[i] - self.err_405[i]), color=c405,alpha=alpha  )
+                    ax.plot(self.t, 100*self.mean_405[i], color=c405, linewidth=.5)
+                    bnds.append(ax.get_ylim())
+                
+                for j,i in enumerate(self.conds):
+                    ax.fill_between(self.t, 100*self.mean_490[i] + 100*self.err_490[i],
+                                    100*(self.mean_490[i] - self.err_490[i]), color=c490,alpha=alpha)
+                    ax.plot(self.t, 100*self.mean_490[i] , color=c490, linewidth=.5,label=i)
+                    bnds.append(ax.get_ylim())
+                    ax.set_title(i)
+                    ax.set_ylabel(r'$\frac{\Delta F}{F}$ (%)')
+                    ax.axvline(x=0, c='k',ls='--', alpha=0.5)
+                ax.set_xlabel('Time Relative to Stimulus (s)')
+                mins,maxes=np.array(bnds).T
+                for i in range(self.conds.size): ax.set_ylim(min(mins),max(maxes))
 
 
         if show:
