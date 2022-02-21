@@ -130,7 +130,7 @@ def norm_to_median_pre_stim(data:mouse_data,t_endrec,t_prestim):
     normed_405=(sel_405-f405_baseline)/f405_baseline
     return normed_490, normed_405, t
 
-def norm_to_405(data:mouse_data,t_endrec,t_prestim,s=20):
+def norm_to_405(data:mouse_data,t_endrec,t_prestim, s=20, ep = 0.01):
     """
     normalize to a linear fit of the 405 data'
 
@@ -152,19 +152,23 @@ def norm_to_405(data:mouse_data,t_endrec,t_prestim,s=20):
     t: np.ndarray
         updated time array for the normalized data
     """
-    pre_stim_490, _, sel_490, sel_405,t=select_data(data,t_endrec,t_prestim)
+    pre_stim_490, pre_stim_405, sel_490, sel_405,t=select_data(data,t_endrec,t_prestim)
 
-    x=np.arange(len(sel_405))
+    #first compute the ∆f/f
+    f405_baseline =  np.median(pre_stim_405)
+    f490_baseline =  np.median(pre_stim_490)
 
-    m, b, _, _, _ = st.linregress(x, sel_405)
+    df_405 = (sel_405 - f405_baseline)/(f405_baseline)
+    df_490 = (sel_490 - f490_baseline)/(f490_baseline)
 
+    #fit a linear regression to the 405
+    x = np.arange(len(sel_405))
+    m, b, _, _, _ = st.linregress(x, df_405)
     fit_405=m*x+b
-    corr_490=sel_490-fit_405
 
-    f490_baseline=np.median(corr_490[:len(pre_stim_490)])
-    normed_490=(corr_490-f490_baseline)/f490_baseline
-
-    normed_405=(sel_405-fit_405)/s
+    #subtract the 405
+    normed_490=df_490-fit_405
+    normed_405=df_405-fit_405
     
     return normed_490, normed_405, t
 
