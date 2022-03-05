@@ -29,7 +29,7 @@ def open_save_lick(fpath, mouse1 = None, mouse2 = None, cond1 = 0, cond2 = 0, ch
 
     fpath = Path(fpath).resolve()
     l_files = list(fpath.iterdir())
-    csvs = list(filter(lambda x: x != "link.txt", l_files)) # get the paths to all csv files
+    csvs = list(filter(lambda x: x.name != "link.txt", l_files)) # get the paths to all csv files
     licks = {} # initialize a dict to store lick data
     for i in csvs: # loop over csv files
         df = pd.read_csv(i, index_col = 0) # read the file
@@ -41,10 +41,9 @@ def open_save_lick(fpath, mouse1 = None, mouse2 = None, cond1 = 0, cond2 = 0, ch
         
         licks.update({i.name.split('_')[1]:df})
 
-    with open(fpath/"link.txt", 'w') as f: link = Path(f.readline()).resolve() # get the address to the photometry data block
+    with open(fpath/"link.txt", 'r') as f: link = Path(f.readline()).resolve() # get the address to the photometry data block
     block = list( list( link.iterdir() )[0].iterdir() )[0] # we need to go 2 levels deep for the tank path
     phot_data = tdt.read_block(block) # read in the photometry data
-    subj = phot_data.info.subject.split("_") # pull the subjects
     tstart = phot_data.info.start_date # also the datetime of the beginning
     data = []  # initialize list of mouse data objects
     
@@ -54,10 +53,10 @@ def open_save_lick(fpath, mouse1 = None, mouse2 = None, cond1 = 0, cond2 = 0, ch
                         phot_data.streams[channels[1][405]].data,
                         phot_data.streams[channels[1][490]].fs,
                         t_start = tstart,
-                        t_stim = (licks[mouse1][0]['datetime'] - tstart).total_seconds(),
+                        t_stim = (licks[mouse1].loc[0,'datetime'] - tstart).total_seconds(),
                         cond = cond1)
-        m.left_licks = licks[mouse1].loc[licks[s]['left lick count'],'time offset (ms)'].values
-        m.right_licks = licks[mouse1].loc[licks[s]['right lick count'],'time offset (ms)'].values
+        m.left_licks = licks[mouse1].loc[licks[mouse1]['left lick count'],'time offset (ms)'].values
+        m.right_licks = licks[mouse1].loc[licks[mouse1]['right lick count'],'time offset (ms)'].values
         data.append(m)
     
     if mouse2:
@@ -66,13 +65,14 @@ def open_save_lick(fpath, mouse1 = None, mouse2 = None, cond1 = 0, cond2 = 0, ch
                         phot_data.streams[channels[2][405]].data,
                         phot_data.streams[channels[2][490]].fs,
                         t_start = tstart,
-                        t_stim = (licks[mouse2][0]['datetime'] - tstart).total_seconds(),
-                        cond = cond1)
-        m.left_licks = licks[mouse2].loc[licks[s]['left lick count'],'time offset (ms)'].values
-        m.right_licks = licks[mouse2].loc[licks[s]['right lick count'],'time offset (ms)'].values
+                        t_stim = (licks[mouse2].loc[0,'datetime'] - tstart).total_seconds(),
+                        cond = cond2)
+        m.left_licks = licks[mouse2].loc[licks[mouse2]['left lick count'],'time offset (ms)'].values
+        m.right_licks = licks[mouse2].loc[licks[mouse2]['right lick count'],'time offset (ms)'].values
         data.append(m)
 
     np.save(block/'exported_data.npy', data)
+    return data
 
 
 if __name__ == '__main__':
