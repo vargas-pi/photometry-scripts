@@ -3,12 +3,13 @@ import datetime
 import numpy as np
 import pandas as pd
 import sys
+import matplotlib.pyplot as py
 sys.path.append('../')
 from analysis_pipeline import *
-from sys_parameters import DEFAULT_SAVE_CHANNELS 
+from sys_parameters import *
 
 
-def open_save_lick(fpath, mouse1 = None, mouse2 = None, channels = DEFAULT_SAVE_CHANNELS ):
+def open_save_lick(fpath, mouse1 = None, mouse2 = None, cond1 = 0, cond2 = 0, channels = DEFAULT_SAVE_CHANNELS ):
     
     """
     a modified version of the open_save function in the import_plot.py file.
@@ -48,21 +49,25 @@ def open_save_lick(fpath, mouse1 = None, mouse2 = None, channels = DEFAULT_SAVE_
     data = []  # initialize list of mouse data objects
     
     if mouse1:
-        m = mouse_data( mouse1, phot_data.streams[channels[1][490]].data, 
+        m = mouse_data( mouse1, 
+                        phot_data.streams[channels[1][490]].data, 
                         phot_data.streams[channels[1][405]].data,
                         phot_data.streams[channels[1][490]].fs,
                         t_start = tstart,
-                        t_stim = (licks[mouse1][0]['datetime'] - tstart).total_seconds())
+                        t_stim = (licks[mouse1][0]['datetime'] - tstart).total_seconds(),
+                        cond = cond1)
         m.left_licks = licks[mouse1].loc[licks[s]['left lick count'],'time offset (ms)'].values
         m.right_licks = licks[mouse1].loc[licks[s]['right lick count'],'time offset (ms)'].values
         data.append(m)
     
     if mouse2:
-        m = mouse_data( mouse2, phot_data.streams[channels[2][490]].data, 
+        m = mouse_data( mouse2, 
+                        phot_data.streams[channels[2][490]].data, 
                         phot_data.streams[channels[2][405]].data,
                         phot_data.streams[channels[2][490]].fs,
                         t_start = tstart,
-                        t_stim = (licks[mouse2][0]['datetime'] - tstart).total_seconds())
+                        t_stim = (licks[mouse2][0]['datetime'] - tstart).total_seconds(),
+                        cond = cond1)
         m.left_licks = licks[mouse2].loc[licks[s]['left lick count'],'time offset (ms)'].values
         m.right_licks = licks[mouse2].loc[licks[s]['right lick count'],'time offset (ms)'].values
         data.append(m)
@@ -71,4 +76,49 @@ def open_save_lick(fpath, mouse1 = None, mouse2 = None, channels = DEFAULT_SAVE_
 
 
 if __name__ == '__main__':
-    pass
+
+    import argparse
+    parser=argparse.ArgumentParser()
+    parser.add_argument('-path',help='the path to the output directory if you are viewing data retroactively')
+    parser.add_argument('-mouse1',help='the identifier of the mouse on the first line')
+    parser.add_argument('-mouse2',help='the identifier of the mouse on the second line')
+    parser.add_argument('-m1_490',help='the name of the 490 channel for line 1', default=None)
+    parser.add_argument('-m1_405',help='the name of the 405 channel for line 1', default=None)
+    parser.add_argument('-m2_490',help='the name of the 490 channel for line 2', default=None)
+    parser.add_argument('-m2_405',help='the name of the 405 channel for line 2', default=None)
+    parser.add_argument('-cond1', help='condition for mouse 1')
+    parser.add_argument('-cond2', help='condition for mouse 2')
+    args=parser.parse_args()
+
+    if not (args.mouse1 or args.mouse2):
+        parser.error('must enter the identifier for at least one mouse')
+    
+    if args.path:
+        # update save channels dict
+        channels = DEFAULT_SAVE_CHANNELS
+        channels[1][490] = args.m1_490 if args.m1_490 else channels[1][490]
+        channels[1][405] = args.m1_405 if args.m1_405 else channels[1][405]
+        channels[2][490] = args.m2_490 if args.m2_490 else channels[2][490]
+        channels[2][405] = args.m2_405 if args.m2_405 else channels[1][405]
+
+        # read block and save
+        d=open_save_lick(args.path, 
+                        mouse1=args.mouse1, 
+                        mouse2=args.mouse2,
+                        cond1=args.cond1,
+                        cond2=args.cond2,
+                        channels = channels)
+        #plot
+        fig , ax = py.subplots( *([2]*len(d)) )
+        if len(d)==2:
+            ax[0,0].set_title(d[0].mouse_id)
+            ax[0,0].plot(d[0].t,d[0].F490,'g', linewidth=0.5)
+            ax[0,1].set_title(d[1].mouse_id)
+            ax[0,1].plot(d[1].t,d[1].F490,'g', linewidth=0.5)
+            ax[1,0].plot(d[0].t,8*np.array(d[0].F405),'r', linewidth=0.5)
+            ax[1,1].plot(d[1].t,8*np.array(d[1].F405),'r', linewidth=0.5)
+        elif len(d)==1:
+            ax[0].set_title(d[0].mouse_id)
+            ax[0].plot(d[0].t,d[0].F490,'g', linewidth=0.5)
+            ax[1].plot(d[0].t,8*d[0].F405,'r', linewidth=0.5)
+        py.show()

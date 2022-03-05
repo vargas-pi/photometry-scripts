@@ -10,7 +10,7 @@ output_filename='exported_data'
 
 class mouse_data:
      """class to store data we want to keep"""
-     def __init__(self,mouse_id,F490,F405,fs,t_start=None,n=None,t=np.array([]),t_stim=None):
+     def __init__(self,mouse_id,F490,F405,fs,t_start=None,n=None,t=np.array([]),t_stim=None, cond = 0):
          self.mouse_id=mouse_id
          self.F490=F490
          self.F405=F405
@@ -18,7 +18,8 @@ class mouse_data:
          self.n=n if n else len(F490)
          self.t=t if t.any() else np.arange(0,(self.n)/fs,1/fs)
          if t_start: self.t_start=t_start
-         self.t_stim=t_stim if t_stim else None
+         if t_stim: self.t_stim=t_stim
+         self.cond = cond
 
 class NoStimTime(Exception):
     """
