@@ -1,6 +1,6 @@
 name: photometry
 dependencies:
-  - python=3.6
+  - python=3.8.8
   - numpy
   - scipy
   - pandas=1.2.3
