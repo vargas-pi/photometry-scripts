@@ -5,3 +5,4 @@ analyses/*
 .DS_Store
 notebooks/custom-scripts/*
 !notebooks/custom-scripts/.gitkeep
+sys_parameters.py

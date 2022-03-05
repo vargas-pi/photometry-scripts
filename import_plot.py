@@ -7,6 +7,7 @@ from datetime import datetime as dt
 from threading import Thread, Event
 import time
 from collections import Callable
+from sys_parameters import *
 
 #NOTE: in general this script can probably be updated to accomodate varible numbers of mice/lines. something to look into
 def stream_plot(ylim:list,mouse1=None,mouse2=None):
@@ -26,7 +27,7 @@ def stream_plot(ylim:list,mouse1=None,mouse2=None):
         syn=tdt.SynapseAPI('localhost')
     except ConnectionRefusedError:
         print('There was an error connecting to Synapse. Make sure a Synapse is recording and the Synapse API is turned on before running this script')
-    mice=[(mouse1,'A'),(mouse2,'B')] #create a list of mouse ids with the channel character attached
+    mice=[(mouse1,1), (mouse2,2)] #create a list of mouse ids with the channel character attached
     mice=[m for m in mice if m[0]] #only include mice that have been specified
 
     mice_data=[mouse_data(m[0],[],[],1) for m in mice] #an array of mouse_data objects for each mouse. they're initialized as empty
@@ -53,8 +54,8 @@ def stream_plot(ylim:list,mouse1=None,mouse2=None):
             for i in range(len(mice_data)):
                 #TODO: At some point this should be updated so the gizmo/parameter name is a variable. 
                 # Right now this function would probably only work on our setup
-                new_490=syn.getParameterValue('FibPho1','Response-1'+mice[i][1])
-                new_405=syn.getParameterValue('FibPho1','Response-2'+mice[i][1])
+                new_490=syn.getParameterValue(GIZMOS[mice[i][1]], CHANNELS[mice[i][1]][490])
+                new_405=syn.getParameterValue(GIZMOS[mice[i][1]], CHANNELS[mice[i][1]][405])
                 new_t=(dt.now()-start).total_seconds()
                 mice_data[i].F490.append(new_490)
                 mice_data[i].F405.append(new_405)
@@ -122,7 +123,7 @@ def stream_plot(ylim:list,mouse1=None,mouse2=None):
 
         
 
-def open_save(path,format='npy',mouse1=None,mouse2=None,t_stim1=None, t_stim2=None, cond1=None,cond2=None, m1_490='x19A',m1_405='x15A',m2_490='x29B',m2_405='x25B'):
+def open_save(path,format='npy',mouse1=None,mouse2=None,t_stim1=None, t_stim2=None, cond1=None,cond2=None, channels = DEFAULT_SAVE_CHANNELS ):
     """
     pull and save the data produced from Synapse in a format we can read in python
 
@@ -151,18 +152,18 @@ def open_save(path,format='npy',mouse1=None,mouse2=None,t_stim1=None, t_stim2=No
 
     data=[]
     if mouse1:
-        m1=mouse_data(mouse1, raw_data.streams[m1_490].data, 
-                      raw_data.streams[m1_405].data, 
-                      raw_data.streams[m1_490].fs,
-                      t_start=raw_data.info.start_date,
-                      t_stim=t_stim1) #create an instance of the data class
+        m1=mouse_data(mouse1, raw_data.streams[channels[1][490]].data, 
+                      raw_data.streams[channels[1][405]].data, 
+                      raw_data.streams[channels[1][490]].fs,
+                      t_start = raw_data.info.start_date,
+                      t_stim = float(t_stim1)) #create an instance of the data class
         data.append(m1)
     if mouse2:
-        m2=mouse_data(mouse2, raw_data.streams[m2_490].data, 
-                      raw_data.streams[m2_405].data, 
-                      raw_data.streams[m2_490].fs,
-                      t_start=raw_data.info.start_date,
-                      t_stim=t_stim2)
+        m2=mouse_data(mouse2, raw_data.streams[channels[2][490]].data, 
+                      raw_data.streams[channels[2][405]].data, 
+                      raw_data.streams[channels[2][490]].fs,
+                      t_start = raw_data.info.start_date,
+                      t_stim = float(t_stim2))
         data.append(m2)
 
     print('saving data...')
@@ -268,10 +269,10 @@ if __name__=='__main__':
     parser.add_argument('-path',help='the path to the output directory if you are viewing data retroactively')
     parser.add_argument('-mouse1',help='the identifier of the mouse on the first line')
     parser.add_argument('-mouse2',help='the identifier of the mouse on the second line')
-    parser.add_argument('-m1_490',help='the name of the 490 channel for line 1', default='x19A')
-    parser.add_argument('-m1_405',help='the name of the 405 channel for line 1', default='x15A')
-    parser.add_argument('-m2_490',help='the name of the 490 channel for line 2', default='x29B')
-    parser.add_argument('-m2_405',help='the name of the 405 channel for line 2', default='x25B')
+    parser.add_argument('-m1_490',help='the name of the 490 channel for line 1', default=None)
+    parser.add_argument('-m1_405',help='the name of the 405 channel for line 1', default=None)
+    parser.add_argument('-m2_490',help='the name of the 490 channel for line 2', default=None)
+    parser.add_argument('-m2_405',help='the name of the 405 channel for line 2', default=None)
     parser.add_argument('-t_stim1', help='time offset in seconds of the stimulus time for mouse 1')
     parser.add_argument('-t_stim2', help='time offset in seconds of the stimulus time for mouse 2')
     parser.add_argument('-cond1', help='condition for mouse 1')
@@ -287,19 +288,25 @@ if __name__=='__main__':
         if not (args.t_stim1 or args.t_stim2):
             parser.error('must enter a stimulus time when exporting data')
         else:
+
+            # update save channels dict
+            channels = DEFAULT_SAVE_CHANNELS
+            channels[1][490] = args.m1_490 if args.m1_490 else channels[1][490]
+            channels[1][405] = args.m1_405 if args.m1_405 else channels[1][405]
+            channels[2][490] = args.m2_490 if args.m2_490 else channels[2][490]
+            channels[2][405] = args.m2_405 if args.m2_405 else channels[1][405]
+
+            # read block and save
             d=open_save(args.path, 
                         format=args.format,
                         mouse1=args.mouse1, 
                         mouse2=args.mouse2,
-                        t_stim1=float(args.t_stim1),
-                        t_stim2=float(args.t_stim2),
+                        t_stim1=args.t_stim1,
+                        t_stim2=args.t_stim2,
                         cond1=args.cond1,
                         cond2=args.cond2,
-                        m1_490=args.m1_490, 
-                        m1_405=args.m1_405, 
-                        m2_490=args.m2_490, 
-                        m2_405=args.m2_405)
-            
+                        channels = channels)
+            #plot
             fig , ax = py.subplots( *([2]*len(d)) )
             if len(d)==2:
                 ax[0,0].set_title(d[0].mouse_id)
