@@ -55,8 +55,8 @@ def open_save_lick(fpath, mouse1 = None, mouse2 = None, cond1 = 0, cond2 = 0, ch
                         t_start = tstart,
                         t_stim = (licks[mouse1].loc[0,'datetime'] - tstart).total_seconds(),
                         cond = cond1)
-        m.left_licks = licks[mouse1].loc[licks[mouse1]['left lick count'],'time offset (ms)'].values
-        m.right_licks = licks[mouse1].loc[licks[mouse1]['right lick count'],'time offset (ms)'].values
+        m.left_licks = licks[mouse1].loc[licks[mouse1]['left lick count'].astype(bool),'time offset (ms)'].values
+        m.right_licks = licks[mouse1].loc[licks[mouse1]['right lick count'].astype(bool),'time offset (ms)'].values
         data.append(m)
     
     if mouse2:
@@ -67,8 +67,8 @@ def open_save_lick(fpath, mouse1 = None, mouse2 = None, cond1 = 0, cond2 = 0, ch
                         t_start = tstart,
                         t_stim = (licks[mouse2].loc[0,'datetime'] - tstart).total_seconds(),
                         cond = cond2)
-        m.left_licks = licks[mouse2].loc[licks[mouse2]['left lick count'],'time offset (ms)'].values
-        m.right_licks = licks[mouse2].loc[licks[mouse2]['right lick count'],'time offset (ms)'].values
+        m.left_licks = licks[mouse2].loc[licks[mouse2]['left lick count'].astype(bool),'time offset (ms)'].values
+        m.right_licks = licks[mouse2].loc[licks[mouse2]['right lick count'].astype(bool,'time offset (ms)'].values
         data.append(m)
 
     np.save(block/'exported_data.npy', data)
