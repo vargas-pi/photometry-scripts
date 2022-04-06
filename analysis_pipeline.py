@@ -130,8 +130,9 @@ class analysis:
 
 
     """
+    multi_index = pd.MultiIndex(levels=[[]]*3,codes=[[]]*3,names=('cond','mouse','trial'))
 
-    def __init__(self, norm_method,t_endrec,t_prestim=300,ex=4,file_format='npy',file_loc='analyses',fname=None):
+    def __init__(self, norm_method,t_endrec,ds_freq = 1, t_prestim=300,ex=4,file_format='npy',file_loc='analyses',fname=None):
         """
         Parameters
         ----------
@@ -152,13 +153,14 @@ class analysis:
 
         """
 
+        self.loaded=False
         self.conditions=None
+        self.ds_freq = ds_freq
         self.norm_method=norm_method
         self.t_endrec=t_endrec
-        self.normed_data = []
-        self.raw_data= []
-        self.excluded_raw = []
-        self.loaded=False
+        self.normed_data = pd.Series([], index = analysis.multi_index, dtype = object)
+        self.raw_data= pd.Series([], index = analysis.multi_index, dtype = object)
+        self.excluded_raw = pd.Series([], index = analysis.multi_index, dtype = object)
         self.ex=ex
         self.file_loc=file_loc
         self.file_format=file_format
@@ -247,11 +249,11 @@ class analysis:
                 d[i].cond=0
             #increment the trial number for the given mouse
             d[i].trial=len(list(filter( lambda x: x==d[i].mouse_id, self.raw_data)))
+            self.raw_data[d[i].cond, d[i].mouse_id, d[i].trial] = d[i]
         
-        self.raw_data.extend(d)
         self.loaded=True
 
-    def normalize_downsample(self,rec:mouse_data,plot=True):
+    def normalize_downsample(self,rec:mouse_data,plot=True, scale=100):
         """
         call the speicified normalization method and downsample to ~1 Hz. when finished, plot the normalized data.
         NOTE: the sampling rate from synapse isn't a whole number so we can't necessarilly get exaclt 1Hz but it's close
@@ -271,8 +273,8 @@ class analysis:
 
         normed_490, normed_405, t = self.norm_method(rec,self.t_endrec,self.t_prestim)
         #resample the data to 1Hz via linear interpolation
-        ds_t,ds_490=resample(t,normed_490)
-        _,ds_405=resample(t,normed_405)
+        ds_t,ds_490=resample(t,normed_490, fs_n = self.ds_freq)
+        _,ds_405=resample(t,normed_405, fs_n = self.ds_freq)
 
         self.t=ds_t.copy()
 
@@ -295,70 +297,75 @@ class analysis:
 
         #plot the data
         if plot:
-            py.plot(m.t,100*m.F490,'g',linewidth=0.5)
-            py.plot(m.t,100*m.F405,'r',linewidth=0.5)
+            py.plot(m.t,scale*m.F490,'g',linewidth=0.5)
+            py.plot(m.t,scale*m.F405,'r',linewidth=0.5)
             py.axvline(x=0, c='k',ls='--', alpha=0.5)
             py.xlabel('Time Relative to Stimulus (s)')
-            py.ylabel(r'$\frac{\Delta F}{F}$ (%)')
+            if scale==100:
+                py.set_ylabel(r'$\frac{\Delta F}{F}$ (%)')
+            else:
+                py.set_ylabel(r'$\frac{\Delta F}{F}$')
             py.show()
 
         return m
 
-    def get_mouse_raw(self,mouse):
-        return list(filter( lambda x: x.mouse_id==mouse, self.raw_data))
-    
-    def compute(self):
+    def compute(self, log = True):
         """
         crop/normalize all included raw data and compute the mean signal
         """
-        if hasattr(self,'excluded_normed') and hasattr(self,'normed_data'): #make sure the fields for normed data exist
-            if (len(self.raw_data)+len(self.excluded_raw))>0: #make sure there is data loaded in the analysis (excluded or not)
-                print('recomputing...')
+        if self.loaded: #make sure there is data loaded in the analysis
+            if log: print('recomputing...')
 
-                #clear the dataframes
-                cols=pd.MultiIndex(levels=[[]]*3,codes=[[]]*3,names=('cond','mouse','trial'))
+            # clear the fields for normed data
+            self.all_490=pd.DataFrame([],columns = analysis.multi_index )
+            self.all_405=pd.DataFrame([],columns = analysis.multi_index )
+            self.normed_data = pd.Series([], index = analysis.multi_index, dtype = object)
 
-                self.all_490=pd.DataFrame([],columns=cols)
-                self.all_405=pd.DataFrame([],columns=cols)
-                self.normed_data = []
-                for i,r in enumerate(self.raw_data): #loop through the raw data and redo the normalization/downsampling
-
-                    if not hasattr(r,'cond'): self.raw_data[i].cond,r.cond=0,0
-                    if not hasattr(r,'trial'):
+            # make sure the raw data field is formatted correctly
+            if not isinstance(self.raw_data, pd.Series):
+                tmp =  pd.Series([], index = analysis.multi_index, dtype = object)
+                for x in self.raw_data:
+                    if not hasattr(x, 'cond'): x.cond = 0
+                    if not hasattr(x, 'trial'): 
                         get_trial=lambda x: x.trial if hasattr(x,'trial') else -1
-                        mi=list(map( get_trial, self.get_mouse_raw(r.mouse_id) ))
-                        self.raw_data[i].trial,r.trial=[max(mi)+1]*2
+                        get_mouse_raw = lambda mouse: list(filter( lambda x: x.mouse_id==mouse, self.raw_data))
+                        mi=list(map( get_trial, get_mouse_raw(x.mouse_id) ))
+                        x.trial=max(mi)+1
+                    tmp[x.cond, x.mouse_id, x.trial] = x
+                self.raw_data = tmp               
 
-                    m=self.normalize_downsample(r,plot=False)
-                    self.normed_data.append(m)
-                    self.all_490[m.cond,m.mouse_id,m.trial]=m.F490
-                    self.all_405[m.cond,m.mouse_id,m.trial]=m.F405
+            # loop through the raw data and redo the normalization/downsampling
+            for r in self.raw_data:
+                m = self.normalize_downsample(r, plot=False)
+                self.normed_data[r.cond, r.mouse_id, r.trial] = m
+                self.all_490[m.cond,m.mouse_id,m.trial] = m.F490
+                self.all_405[m.cond,m.mouse_id,m.trial] = m.F405
 
-                self.all_490.index=self.t
-                self.all_405.index=self.t
-                
-                self.conditions=self.all_490.columns.get_level_values('cond')
+            self.all_490.index = self.t
+            self.all_405.index = self.t
 
-                #consolidate dataframe by averaging within mice within condition
-                self.all_490=self.all_490.groupby('cond',axis=1).apply(lambda x: x.groupby('mouse',axis=1).mean())
-                self.all_405=self.all_405.groupby('cond',axis=1).apply(lambda x: x.groupby('mouse',axis=1).mean())
+            self.conditions=self.all_490.columns.get_level_values('cond')
 
-                #calculate mean and standard error for 490
-                self.mean_490=self.all_490.groupby('cond',axis=1).mean()
-                self.err_490=self.all_490.groupby('cond',axis=1).sem()
+            # consolidate dataframe by averaging within mice within condition
+            self.all_490=self.all_490.groupby('cond',axis=1).apply(lambda x: x.groupby('mouse',axis=1).mean())
+            self.all_405=self.all_405.groupby('cond',axis=1).apply(lambda x: x.groupby('mouse',axis=1).mean())
 
-                #calculate mean and standard error for 405
-                self.mean_405=self.all_405.groupby('cond',axis=1).mean()
-                self.err_405=self.all_405.groupby('cond',axis=1).sem()
+            # calculate mean and standard error for 490
+            self.mean_490=self.all_490.groupby('cond',axis=1).mean()
+            self.err_490=self.all_490.groupby('cond',axis=1).sem()
 
-                #update properties of the analysis
-                self.mice_by_cond=self.all_490.groupby('cond',axis=1).apply(lambda x:x.columns.get_level_values('mouse').tolist()).to_dict()
-                self.n_by_cond=self.all_490.groupby('cond',axis=1).apply(lambda x:x.columns.get_level_values('mouse').size).to_dict()
-                self.mice=self.all_490.columns.get_level_values('mouse').unique()
-                self.n_tot=self.mice.size
-                self.conds=self.all_490.columns.get_level_values('cond').unique()
+            # calculate mean and standard error for 405
+            self.mean_405=self.all_405.groupby('cond',axis=1).mean()
+            self.err_405=self.all_405.groupby('cond',axis=1).sem()
 
-                print('successful')
+            # update properties of the analysis
+            self.mice_by_cond=self.all_490.groupby('cond',axis=1).apply(lambda x:x.columns.get_level_values('mouse').tolist()).to_dict()
+            self.n_by_cond=self.all_490.groupby('cond',axis=1).apply(lambda x:x.columns.get_level_values('mouse').size).to_dict()
+            self.mice=self.all_490.columns.get_level_values('mouse').unique()
+            self.n_tot=self.mice.size
+            self.conds=self.all_490.columns.get_level_values('cond').unique()
+
+            if log: print('successful')
 
     def save(self,file_format=False):
         """
@@ -411,7 +418,7 @@ class analysis:
                     data[i,j]=data[i,j-1] if j>0 else 0
             d.update({f'_{c}':data})
         
-        savemat(os.path.join(self.file_loc,'analysis_'+'_'.join([r.mouse_id for r in self.raw_data])+'.mat'),d)
+        savemat(os.path.join(self.file_loc,'analysis_'+'_'.join(self.mice)+'.mat'),d)
 
 
     def remove_mouse(self,mouse:str,cond=None,recompute=True):
@@ -425,15 +432,15 @@ class analysis:
         """
 
         if not hasattr(self,'excluded_raw'):
-            self.excluded_raw=[]
+            self.excluded_raw = pd.Series([], index = analysis.multi_index, dtype = object)
         
-        raw_data=pd.Series({(x.cond,x.mouse_id):x for x in self.raw_data})
+
         if cond is None:
-            self.excluded_raw.extend(raw_data.loc[:,mouse].to_list())
-            self.raw_data=raw_data.drop(index=[mouse],level=1).to_list()
+            self.excluded_raw.append(self.raw_data.loc[:,mouse])
+            self.raw_data=self.raw_data.drop(index=[mouse],level=1)
         else:
-            self.excluded_raw.extend([raw_data.loc[cond,mouse]])
-            self.raw_data=raw_data.drop(index=(cond,mouse)).to_list()
+            self.excluded_raw.append(self.raw_data.loc[cond,mouse])
+            self.raw_data=self.raw_data.drop(index=(cond,mouse))
 
         if len(self.raw_data)==0:
             self.loaded=False
@@ -453,15 +460,14 @@ class analysis:
         if not hasattr(self,'excluded_raw') or len(self.excluded_raw)==0:
             print('this analysis has no excluded data')
             return
-        excl_raw=pd.Series({(x.cond,x.mouse_id):x for x in self.excluded_raw})
 
         if cond is None:
-            self.raw_data.extend(excl_raw.loc[:,mouse].to_list())
-            self.excluded_raw=excl_raw.drop(index=[mouse],level=1).to_list()
+            self.raw_data.append(self.excluded_raw.loc[:,mouse])
+            self.excluded_raw = self.excluded_raw.drop(index=[mouse],level=1)
 
         else:
-            self.raw_data.extend([excl_raw.loc[cond,mouse]])
-            self.excluded_raw=excl_raw.drop(index=(cond,mouse)).to_list()
+            self.raw_data.append(self.excluded_raw.loc[cond,mouse])
+            self.excluded_raw = self.excluded_raw.drop(index=(cond,mouse))
 
         self.loaded=True
 
@@ -469,7 +475,7 @@ class analysis:
             self.compute()
 
 
-    def plot_both(self,cond=None, cm405='Reds',cm490='Greens',c490=None,c405=None,show=True,ax=None,alpha=.3,figsize=(12,5)):
+    def plot_both(self,cond=None, cm405='Reds',cm490='Greens',c490=None,c405=None,show=True,ax=None,alpha=.3,figsize=(12,5), scale = 100):
         """
         plot the average normalized 490 and 405 signal with error
         """
@@ -483,12 +489,12 @@ class analysis:
         
         if cond is not None:
             if ax is None: _,ax=py.subplots(1,1)
-            ax.fill_between(self.t, 100*(self.mean_405[cond] + self.err_405[cond]),
-                            100*(self.mean_405[cond] - self.err_405[cond]), color=c405,alpha=alpha  )
-            ax.plot(self.t, 100*self.mean_405[cond], color=c405, linewidth=.5)
-            ax.fill_between(self.t, 100*self.mean_490[cond] + 100*self.err_490[cond],
-                            100*(self.mean_490[cond] - self.err_490[cond]), color=c490,alpha=alpha )
-            ax.plot(self.t, 100*self.mean_490[cond] , color=c490, linewidth=.5)
+            ax.fill_between(self.t, scale*(self.mean_405[cond] + self.err_405[cond]),
+                            scale*(self.mean_405[cond] - self.err_405[cond]), color=c405,alpha=alpha  )
+            ax.plot(self.t, scale*self.mean_405[cond], color=c405, linewidth=.5)
+            ax.fill_between(self.t, scale*self.mean_490[cond] + scale*self.err_490[cond],
+                            scale*(self.mean_490[cond] - self.err_490[cond]), color=c490,alpha=alpha )
+            ax.plot(self.t, scale*self.mean_490[cond] , color=c490, linewidth=.5)
         
         else:
             if ax is None:
@@ -507,18 +513,21 @@ class analysis:
 
             if isinstance(ax, np.ndarray):
                 for j,i in enumerate(self.conds):
-                    ax.flatten()[j].fill_between(self.t, 100*(self.mean_405[i] + self.err_405[i]),
-                                    100*(self.mean_405[i] - self.err_405[i]), color=c405,alpha=alpha  )
-                    ax.flatten()[j].plot(self.t, 100*self.mean_405[i], color=c405, linewidth=.5)
+                    ax.flatten()[j].fill_between(self.t, scale*(self.mean_405[i] + self.err_405[i]),
+                                    scale*(self.mean_405[i] - self.err_405[i]), color=c405,alpha=alpha  )
+                    ax.flatten()[j].plot(self.t, scale*self.mean_405[i], color=c405, linewidth=.5)
                     bnds.append(ax.flatten()[j].get_ylim())
                 
                 for j,i in enumerate(self.conds):
-                    ax.flatten()[j].fill_between(self.t, 100*self.mean_490[i] + 100*self.err_490[i],
-                                    100*(self.mean_490[i] - self.err_490[i]), color=c490,alpha=alpha)
-                    ax.flatten()[j].plot(self.t, 100*self.mean_490[i] , color=c490, linewidth=.5,label=i)
+                    ax.flatten()[j].fill_between(self.t, scale*self.mean_490[i] + scale*self.err_490[i],
+                                    scale*(self.mean_490[i] - self.err_490[i]), color=c490,alpha=alpha)
+                    ax.flatten()[j].plot(self.t, scale*self.mean_490[i] , color=c490, linewidth=.5,label=i)
                     bnds.append(ax.flatten()[j].get_ylim())
                     ax.flatten()[j].set_title(i)
-                    ax.flatten()[j].set_ylabel(r'$\frac{\Delta F}{F}$ (%)')
+                    if scale==100:
+                        ax.set_ylabel(r'$\frac{\Delta F}{F}$ (%)')
+                    else:
+                        ax.set_ylabel(r'$\frac{\Delta F}{F}$')
                     ax.flatten()[j].axvline(x=0, c='k',ls='--', alpha=0.5)
                 ax.flatten()[-1].set_xlabel('Time Relative to Stimulus (s)')
                 mins,maxes=np.array(bnds).T
@@ -526,18 +535,21 @@ class analysis:
             
             else:
                 for j,i in enumerate(self.conds):
-                    ax.fill_between(self.t, 100*(self.mean_405[i] + self.err_405[i]),
-                                    100*(self.mean_405[i] - self.err_405[i]), color=c405,alpha=alpha  )
-                    ax.plot(self.t, 100*self.mean_405[i], color=c405, linewidth=.5)
+                    ax.fill_between(self.t, scale*(self.mean_405[i] + self.err_405[i]),
+                                    scale*(self.mean_405[i] - self.err_405[i]), color=c405,alpha=alpha  )
+                    ax.plot(self.t, scale*self.mean_405[i], color=c405, linewidth=.5)
                     bnds.append(ax.get_ylim())
                 
                 for j,i in enumerate(self.conds):
-                    ax.fill_between(self.t, 100*self.mean_490[i] + 100*self.err_490[i],
-                                    100*(self.mean_490[i] - self.err_490[i]), color=c490,alpha=alpha)
-                    ax.plot(self.t, 100*self.mean_490[i] , color=c490, linewidth=.5,label=i)
+                    ax.fill_between(self.t, scale*self.mean_490[i] + scale*self.err_490[i],
+                                    scale*(self.mean_490[i] - self.err_490[i]), color=c490,alpha=alpha)
+                    ax.plot(self.t, scale*self.mean_490[i] , color=c490, linewidth=.5,label=i)
                     bnds.append(ax.get_ylim())
                     ax.set_title(i)
-                    ax.set_ylabel(r'$\frac{\Delta F}{F}$ (%)')
+                    if scale==100:
+                        ax.set_ylabel(r'$\frac{\Delta F}{F}$ (%)')
+                    else:
+                        ax.set_ylabel(r'$\frac{\Delta F}{F}$')
                     ax.axvline(x=0, c='k',ls='--', alpha=0.5)
                 ax.set_xlabel('Time Relative to Stimulus (s)')
                 mins,maxes=np.array(bnds).T
@@ -549,7 +561,7 @@ class analysis:
 
         return ax
 
-    def plot_ind_trace(self,mouse:str,cond=None,cm405='Reds',cm490='Greens',c490=None,c405=None,plot_405=True,ax=None,show=True):
+    def plot_ind_trace(self,mouse:str,cond=None,cm405='Reds',cm490='Greens',c490=None,c405=None,plot_405=True,ax=None,show=True, scale=100):
         """
         plot the individual trace for a given mouse
 
@@ -569,13 +581,13 @@ class analysis:
         if cond is not None:
             c490=cm490[0] if c490 is None else c490
             c405=cm405[0] if c405 is None else c405
-            ax.plot(100*self.all_490.loc[:,idx[cond,mouse]] , color=c490, linewidth=0.5)
+            ax.plot(scale*self.all_490.loc[:,idx[cond,mouse]] , color=c490, linewidth=0.5)
             if plot_405:
-                ax.plot(100*self.all_405.loc[:,idx[cond,mouse]], color=c405, linewidth=0.5)
+                ax.plot(scale*self.all_405.loc[:,idx[cond,mouse]], color=c405, linewidth=0.5)
         else:
-            d=100*self.all_490.loc[:,idx[:,mouse]]
+            d=scale*self.all_490.loc[:,idx[:,mouse]]
             d.columns=d.columns.get_level_values('cond')
-            d5=100*self.all_405.loc[:,idx[:,mouse]]
+            d5=scale*self.all_405.loc[:,idx[:,mouse]]
             d5.columns=d.columns.get_level_values('cond')
 
             if plot_405:
@@ -588,7 +600,10 @@ class analysis:
        
         ax.axvline(x=0, c='k',ls='--', alpha=0.5)
         ax.set_xlabel('Time Relative to Stimulus (s)')
-        ax.set_ylabel(r'$\frac{\Delta F}{F}$ (%)')
+        if scale==100:
+            ax.set_ylabel(r'$\frac{\Delta F}{F}$ (%)')
+        else:
+            ax.set_ylabel(r'$\frac{\Delta F}{F}$')
         
         if show:
             py.show()
@@ -596,7 +611,7 @@ class analysis:
         return ax
 
         
-    def plot_490(self,cond=None,show=True,ax=None,cm='Set2',c490=None,alpha=.3):
+    def plot_490(self,cond=None,show=True,ax=None,cm='Set2',c490=None,alpha=.3, scale=100):
         """
         plot the average normalized 490 signal with error
         """
@@ -611,18 +626,23 @@ class analysis:
         
         if cond is not None:
             c490=cm[cond] if c490 is None else c490
-            ax.fill_between(self.t, 100*self.mean_490[cond] + 100*self.err_490[cond],
-                            100*(self.mean_490[cond] - self.err_490[cond]), color=c490,alpha=alpha )
-            ax.plot(self.t, 100*self.mean_490[cond] , color=c490, linewidth=0.5)
+            ax.fill_between(self.t, scale*self.mean_490[cond] + scale*self.err_490[cond],
+                            scale*(self.mean_490[cond] - self.err_490[cond]), color=c490,alpha=alpha )
+            ax.plot(self.t, scale*self.mean_490[cond] , color=c490, linewidth=0.5)
+
         else:
             for i in self.conds:
-                ax.fill_between(self.t, 100*self.mean_490[i] + 100*self.err_490[i],
-                                100*(self.mean_490[i] - self.err_490[i]), color=cm[i],alpha=alpha )
-                ax.plot(self.t, 100*self.mean_490[i] , color=cm[i], linewidth=0.5,label=i)
+                ax.fill_between(self.t, scale*self.mean_490[i] + scale*self.err_490[i],
+                                scale*(self.mean_490[i] - self.err_490[i]), color=cm[i],alpha=alpha )
+                ax.plot(self.t, scale*self.mean_490[i] , color=cm[i], linewidth=0.5,label=i)
                 if self.conds.size>1: ax.legend()
         ax.axvline(x=0, c='k',ls='--', alpha=0.5)
         ax.set_xlabel('Time Relative to Stimulus (s)')
-        ax.set_ylabel(r'$\frac{\Delta F}{F}$ (%)')
+        
+        if scale==100:
+            ax.set_ylabel(r'$\frac{\Delta F}{F}$ (%)')
+        else:
+            ax.set_ylabel(r'$\frac{\Delta F}{F}$')
 
         if show:
             py.show()
@@ -630,7 +650,7 @@ class analysis:
         return ax
 
 
-    def bin_plot(self,binsize,save=False,cond=None,show=True,ax=None,cm='Set2',color=None):
+    def bin_plot(self,binsize,save=False,cond=None,show=True,ax=None,cm='Set2',color=None, scale=100):
         """
         run bin_plot and then plot the data
 
@@ -656,14 +676,17 @@ class analysis:
 
         if cond is not None:
             color=cm[cond] if color is None else color
-            ax.errorbar(x=df.index,y=100*df['mean'][cond],yerr=100*df['sem'][cond],color=color)
+            ax.errorbar(x=df.index,y=scale*df['mean'][cond],yerr=scale*df['sem'][cond],color=color)
         else:
             for i in self.conds:
-                ax.errorbar(x=df.index,y=100*df['mean'][i],yerr=100*df['sem'][i],color=cm[i],label=i)
+                ax.errorbar(x=df.index,y=scale*df['mean'][i],yerr=scale*df['sem'][i],color=cm[i],label=i)
                 if self.conds.size>1: ax.legend()
         
         ax.set_xlabel('Time Relative to Stimulus (s)')
-        ax.set_ylabel(r'$\frac{\Delta F}{F}$ (%)')
+        if scale==100:
+            ax.set_ylabel(r'$\frac{\Delta F}{F}$ (%)')
+        else:
+            ax.set_ylabel(r'$\frac{\Delta F}{F}$')
         
         if show:
             py.show()
@@ -694,7 +717,6 @@ class analysis:
         bins=np.append(-np.arange(0, self.t_prestim+binsize, binsize)[:0:-1],
                         np.arange(0, self.t[-1]+binsize, binsize ))
 
-        mice=[m.mouse_id for m in self.raw_data] # get the names of the kept mice in the analysis
 
         df=self.all_490.copy()
         for i in df.columns.get_level_values('cond'):
@@ -703,23 +725,22 @@ class analysis:
         def mean_f_trapz(y):
             #calculate the mean within each bin by numerical integration
             y=y.dropna()
-            return np.trapz(y,x=y.index)/(y.index[-1]-y.index[0])
+            return np.trapz(y,x=y.index)/binsize
 
-        def do_binning(x):
-            x=x.droplevel('cond',axis=1)
-            return x.pivot_table(values=x.columns[x.columns.isin(mice)], 
-                                 index=['bin start (s)'],aggfunc=mean_f_trapz)
-
-        binned=df.groupby('cond',axis=1).apply(do_binning)
-        binned_stats=pd.concat([binned.groupby('cond',axis=1).mean(),binned.groupby('cond',axis=1).sem()],keys=['mean','sem'],axis=1)
-
+        df = df.stack('cond').reset_index('cond')
+        df['bin start (s)'] = bins[np.digitize(df.index, bins)-1]
+        binned = df.pivot_table(index = ['cond', 'bin start (s)'], aggfunc = mean_f_trapz)
+        binned = binned.unstack('cond').swaplevel(axis=1).sort_index(axis=1)
+        binned_stats = pd.concat([binned.groupby('cond',axis=1).mean(),
+                                  binned.groupby('cond',axis=1).sem()], 
+                                 keys=['mean','sem'], axis=1)
 
         if not hasattr(self,'binned'):
             self.binned={}
         self.binned.update({f'{binsize}':binned_stats})
 
         if save:
-            binned_stats.to_csv(os.path.join(self.file_loc,f"binned_{binsize}s {'_'.join([r.mouse_id for r in self.raw_data])}.csv"))
+            binned_stats.to_csv(os.path.join(self.file_loc,f"binned_{binsize}s {'_'.join(self.mice)}.csv"))
         
             
         return binned_stats,binned
@@ -764,7 +785,7 @@ class analysis:
             self.avgs.update({f'_{start}_{end}':avgs})
             
             if save:
-                avgs.to_csv(os.path.join(self.file_loc,f"avg_{start}s_{end}s_{'_'.join([r.mouse_id for r in self.raw_data])}.csv"))
+                avgs.to_csv(os.path.join(self.file_loc,f"avg_{start}s_{end}s_{'_'.join(self.mice)}.csv"))
 
             return avgs
     
@@ -811,7 +832,7 @@ class analysis:
             self.aucs.update({f'_{start}_{end}':aucs})
 
             if save:
-                aucs.to_csv(os.path.join(self.file_loc,f"auc_{start}s_{end}s_{'_'.join([r.mouse_id for r in self.raw_data])}.csv"))
+                aucs.to_csv(os.path.join(self.file_loc,f"auc_{start}s_{end}s_{'_'.join(self.mice)}.csv"))
 
         except IndexError:
             print('Time stamps are outside the scope of the analysis! Choose a different start and end time or restart the analysis with a different t_endrec.')
@@ -872,7 +893,7 @@ class analysis:
 
         if save:
             df=pd.DataFrame(peaks,columns=[f'{extrema} ∆F/F','time (s)']).T
-            df.to_csv(os.path.join(self.file_loc,f"ind_{extrema}_{'_'.join([r.mouse_id for r in self.raw_data])}.csv"))
+            df.to_csv(os.path.join(self.file_loc,f"ind_{extrema}_{'_'.join(self.mice)}.csv"))
 
         return peaks
 
@@ -931,7 +952,7 @@ class analysis:
         self.mean_pks.update({f'{extrema}':peaks})
 
         if save:
-            peaks.to_csv(os.path.join(self.file_loc,f"mean_{extrema}_{'_'.join([r.mouse_id for r in self.raw_data])}.csv"))
+            peaks.to_csv(os.path.join(self.file_loc,f"mean_{extrema}_{'_'.join(self.mice)}.csv"))
 
         return peaks
 

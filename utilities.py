@@ -3,6 +3,8 @@ import json
 import numpy as np
 from scipy import stats as st
 from scipy.interpolate import interp1d
+from scipy.optimize import curve_fit
+from scipy.ndimage import gaussian_filter1d
 from datetime import timedelta
 
 
@@ -131,7 +133,9 @@ def norm_to_median_pre_stim(data:mouse_data,t_endrec,t_prestim):
     normed_405=(sel_405-f405_baseline)/f405_baseline
     return normed_490, normed_405, t
 
-def norm_to_405(data:mouse_data,t_endrec,t_prestim, s=20, ep = 0.01):
+
+
+def norm_to_405(data:mouse_data,t_endrec,t_prestim):
     """
     normalize to a linear fit of the 405 data'
 
@@ -153,25 +157,33 @@ def norm_to_405(data:mouse_data,t_endrec,t_prestim, s=20, ep = 0.01):
     t: np.ndarray
         updated time array for the normalized data
     """
-    pre_stim_490, pre_stim_405, sel_490, sel_405,t=select_data(data,t_endrec,t_prestim)
+    _, _, sel_490, sel_405,t = select_data(data,t_endrec,t_prestim)
 
-    #first compute the ∆f/f
-    f405_baseline =  np.median(pre_stim_405)
-    f490_baseline =  np.median(pre_stim_490)
+    #downsample temporarily for efficiency and roughly low pass filter for a cleaner fit
+    filt_ds490 = gaussian_filter1d(sel_490[::int(data.fs)],sigma = 10)
+    filt_ds405 = gaussian_filter1d(sel_405[::int(data.fs)],sigma = 10)
 
-    df_405 = (sel_405 - f405_baseline)/(f405_baseline)
-    df_490 = (sel_490 - f490_baseline)/(f490_baseline)
+    #fit the 405 data to the 490
+    m, b = np.polyfit(filt_ds405, filt_ds490, 1)
+    f0_ds = m * filt_ds405 + b
 
-    #fit a linear regression to the 405
-    x = np.arange(len(sel_405))
-    m, b, _, _, _ = st.linregress(x, df_405)
-    fit_405=m*x+b
+    # upsample the baseline estimate
+    f0_fn = interp1d( t[::int(data.fs)], f0_ds, bounds_error = False, fill_value = 'extrapolate')
+    f0 = f0_fn(t)
 
-    #subtract the 405
-    normed_490=df_490-fit_405
-    normed_405=df_405-fit_405
+    normed_490 = (sel_490 - f0)/f0
+    normed_405 = (sel_405 * m + b - f0)/f0
+
+    return normed_490, normed_405, t
     
+
+def zscore(data:mouse_data,t_endrec,t_prestim, detrend_method = norm_to_405,  s = .3):
+    normed_490, normed_405, t = detrend_method(data, t_endrec, t_prestim)
+    normed_490 = (normed_490 - normed_490.mean())/normed_490.std()
+    normed_405 = s * (normed_405 - normed_405.mean())/normed_405.std()
     return normed_490, normed_405, t
 
-def zscore(data:mouse_data,t_endrec,t_prestim):
-    pass 
+def delta_zscore(data:mouse_data,t_endrec,t_prestim, detrend_method = norm_to_405, s=.3):
+    normed_490, normed_405, t = zscore(data, t_endrec, t_prestim, detrend_method, s)
+    normed_490 = normed_490 - np.median(normed_490[:t_prestim])
+    return normed_490, normed_405, t
