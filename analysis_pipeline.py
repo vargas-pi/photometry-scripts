@@ -436,10 +436,10 @@ class analysis:
         
 
         if cond is None:
-            self.excluded_raw.append(self.raw_data.loc[:,mouse])
+            self.excluded_raw.append(self.raw_data.xs(pd.IndexSlice[:,mouse], drop_level=False))
             self.raw_data=self.raw_data.drop(index=[mouse],level=1)
         else:
-            self.excluded_raw.append(self.raw_data.loc[cond,mouse])
+            self.excluded_raw.append(self.raw_data.xs(pd.IndexSlice[cond,mouse], drop_level=False))
             self.raw_data=self.raw_data.drop(index=(cond,mouse))
 
         if len(self.raw_data)==0:
@@ -462,11 +462,11 @@ class analysis:
             return
 
         if cond is None:
-            self.raw_data.append(self.excluded_raw.loc[:,mouse])
+            self.raw_data.append(self.excluded_raw.xs(pd.IndexSlice[:,mouse], drop_level=False))
             self.excluded_raw = self.excluded_raw.drop(index=[mouse],level=1)
 
         else:
-            self.raw_data.append(self.excluded_raw.loc[cond,mouse])
+            self.raw_data.append(self.excluded_raw.xs(pd.IndexSlice[cond,mouse], drop_level=False))
             self.excluded_raw = self.excluded_raw.drop(index=(cond,mouse))
 
         self.loaded=True
