@@ -303,9 +303,9 @@ class analysis:
             py.axvline(x=0, c='k',ls='--', alpha=0.5)
             py.xlabel('Time Relative to Stimulus (s)')
             if scale==100:
-                py.set_ylabel(r'$\frac{\Delta F}{F}$ (%)')
+                py.ylabel(r'$\frac{\Delta F}{F}$ (%)')
             else:
-                py.set_ylabel(r'$\frac{\Delta F}{F}$')
+                py.ylabel(r'$\frac{\Delta F}{F}$')
             py.show()
 
         return m
