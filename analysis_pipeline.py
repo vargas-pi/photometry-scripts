@@ -273,6 +273,7 @@ class analysis:
 
         normed_490, normed_405, t = self.norm_method(rec,self.t_endrec,self.t_prestim)
         #resample the data to 1Hz via linear interpolation
+        if not hasattr(self, 'ds_freq'): self.ds_freq = 1
         ds_t,ds_490=resample(t,normed_490, fs_n = self.ds_freq)
         _,ds_405=resample(t,normed_405, fs_n = self.ds_freq)
 
