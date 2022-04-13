@@ -89,14 +89,15 @@ def load_append_save_cli():
                 resp=input_f(f"if you would like to name the condition for this recording enter it here, otherwise type 'no':  ")
                 if not resp.lower() in ['n','no']:
                     d[i].cond=resp
-
+            
+            d[i].trial=len(list(filter( lambda x: x==d[i].mouse_id, self.raw_data)))
             _=a.normalize_downsample(d[i])
             #allow the user to decide if they'd like to keep the data and store the data in the appropriate place
             if int(input_f('Would you like to 1. keep or 2. discard this data?[1/2]: '))==1:
-                a.raw_data.append(d[i])
+                a.raw_data[d[i].cond, d[i].mouse_id, d[i].trial] = d[i]
                 a.loaded=True
             else:
-                a.excluded_raw.append(d[i])
+                a.excluded_raw[d[i].cond, d[i].mouse_id, d[i].trial] = d[i]
 
         
         cont=input_f('Would you like to continue adding?[y/n]').lower()
