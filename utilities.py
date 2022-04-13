@@ -175,7 +175,12 @@ def norm_to_405(data:mouse_data,t_endrec,t_prestim):
     normed_405 = (sel_405 * m + b - f0)/f0
 
     return normed_490, normed_405, t
-    
+
+def norm_to_405_sub_base(data:mouse_data,t_endrec,t_prestim):
+    normed_490, normed_405, t = norm_to_405(data,t_endrec,t_prestim)
+    normed_490 -= np.median(normed_490[:get_sample(t_prestim, data.fs)])
+    normed_405 -= np.median(normed_405[:get_sample(t_prestim, data.fs)])
+    return normed_490, normed_405, t
 
 def zscore(data:mouse_data,t_endrec,t_prestim, detrend_method = norm_to_405,  s = .3):
     normed_490, normed_405, t = detrend_method(data, t_endrec, t_prestim)
