@@ -716,6 +716,7 @@ class analysis:
         #start the bins in both directions from 0
         bins=np.append(-np.arange(0, self.t_prestim+binsize, binsize)[:0:-1],
                         np.arange(0, self.t[-1]+binsize, binsize ))
+        bins[-1]+=1
 
 
         df=self.all_490.copy()
