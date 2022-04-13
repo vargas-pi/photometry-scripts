@@ -90,7 +90,9 @@ def load_append_save_cli():
                 if not resp.lower() in ['n','no']:
                     d[i].cond=resp
             
-            d[i].trial=len(list(filter( lambda x: x==d[i].mouse_id, self.raw_data)))
+            try: d[i].trial=len(a.raw_data.sort_index().loc[d[i].cond,d[i].mouse_id])
+            except KeyError: d[i].trial=0
+
             _=a.normalize_downsample(d[i])
             #allow the user to decide if they'd like to keep the data and store the data in the appropriate place
             if int(input_f('Would you like to 1. keep or 2. discard this data?[1/2]: '))==1:
