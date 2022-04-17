@@ -248,8 +248,10 @@ class analysis:
             elif not hasattr(d[i],'cond'):
                 d[i].cond=0
             #increment the trial number for the given mouse
-            try: d[i].trial=len(self.raw_data.sort_index().loc[d[i].cond,d[i].mouse_id])
-            except KeyError: d[i].trial=0
+            if len(self.raw_data)>0:
+                try: d[i].trial=len(self.raw_data.sort_index().loc[d[i].cond,d[i].mouse_id])
+                except KeyError: d[i].trial=0
+            else: d[i].trial=0
             self.raw_data[d[i].cond, d[i].mouse_id, d[i].trial] = d[i]
         
         self.loaded=True
