@@ -11,6 +11,25 @@ def input_f(s):
     sys.stdout.flush()
     return input(s)
 
+norm_methods = [norm_to_median_pre_stim, norm_to_405, zscore, zscore_mod]
+detrend_methods = [detrend_405, detrend_405_constrained]
+def select_norm():
+    print('Choose one of the normalization methods:')
+    print('1. normalize to the median of pre-stimulus data')
+    print('2. normalize to the 405')
+    print('3. z-score')
+    print('4. z-score to the mean and standard deviation of the pre-stimulus data')
+    print('')
+    norm_method = input_f('(input the number of the desired choice):')
+    return norm_methods[int(norm_method)-1]
+
+def select_detrend():
+    print('Choose one of the following detrending methods:')
+    print('1. linear fit of the 405 to the 490')
+    print('2. linear fit of the 405 to the 490 with positive constraint on the slope')
+    print('')
+    detrend_method = input_f('(input the number of the desired choice):')
+    return detrend_methods[int(detrend_method)-1]
 
 print('==========================================================================')
 print('=================fiber-photometry analysis pipeline=======================')
@@ -19,40 +38,40 @@ print('==================Monell Chemical Senses Center==========================
 print('==========================================================================')
 print(' ')
 
-ans=int(input_f('Would you like to 1. load and add to an existing analysis or 2. start a new analysis? [1/2]: '))
-norm_methods=[norm_to_median_pre_stim, norm_to_405]
+ans = int(input_f('Would you like to 1. load and add to an existing analysis or 2. start a new analysis? [1/2]: '))
 
-if ans==1:
+if ans == 1:
     #load in the analysis from the specified file in the output folder
         sys.stdout.flush()
-        fname=input_f('Please enter the path to an exported analysis file: ')
-        a=load_analysis(fname)
+        fname = input_f('Please enter the path to an exported analysis file: ')
+        a = load_analysis(fname)
 else:
     #ask for necessary parameters for the analysis
     
     t_endrec = input_f('Enter length of recording in seconds from the stimulus time: ')
     t_endrec = float(t_endrec)
-
-    norm_method=input_f('How would you like to normalize this data? 1. normalize to the median of pre-stimulus data, 2. normalize to the 405 [1/2]: ')
-    norm_method=norm_methods[int(norm_method)-1]
+    norm_method = select_norm()
+    detrend = False
+    detrend_method = detrend_405_constrained
+    if norm_method != norm_to_405:
+        detrend = input_f('Would you like to detrend the data [y/n]: ')
+        detrend = detrend not in ['n','no']
+        if detrend:
+            detrend_method = select_detrend()
 
     spec_exc_crit=input_f('Would you like to specify the exclusion criteria? (i.e. # of st devs above or below the mean of the data beyond which to exclude) [y/n]: ')
-    
-
-
     if spec_exc_crit.lower() in ['n','no']:
         ex=4
     else:
         ex=int(input_f('How many st. devs above or below the mean would you like to define as the limits of the data?: '))
     
     spec_prestim=input_f('Would you like to specify the amount of time pre-stimulus to keep (the default will be 5 minutes)?[y/n]: ')
-
     if spec_prestim.lower() in ['n','no']:
         t_prestim=300
     else:
         t_prestim=int(input_f('How many seconds pre-stimulus would you like to keep?: '))
     
-    a=analysis(norm_method,t_endrec,ex=ex,t_prestim=t_prestim)
+    a=analysis(norm_method,t_endrec,ex=ex, t_prestim=t_prestim, detrend = detrend, detrend_method=detrend_method)
 
 def load_append_save_cli():
 
@@ -117,19 +136,30 @@ def update_params_cli():
     print('3. Exclusion criteria')
     print('4. Change File Format')
     print('5. Change Pre-Stimulus Time')
+    print('6. Whether or not to detrend')
+    print('7. Set the detrend method')
+    print('8. Set the downsampling frequency')
     print('')
     choice=input_f('(input the number of the desired choice):')
 
     if choice=='1':
         a.t_endrec = int(input_f( 'Enter length of recording in seconds from the stimulus time:' ))
     elif choice=='2':
-        a.norm_method=norm_methods[int(input_f( 'How would you like to normalize this data? 1. normalize to the median of pre-stimulus data, 2. normalize to the 405 [1/2]:' ))-1]
+        a.norm_method = select_norm()
     elif choice=='3':
         a.ex=int(input_f( 'How many st. devs above or below the mean would you like to define as the limits of the data?: ' ))
     elif choice=='4':
         a.file_format=['npy','json'][-1+int(input_f( 'What file format would you like? 1. npy, 2. json [1/2]: ' ))]
     elif choice=='5':
         a.t_prestim=int(input_f( 'Enter the desired pre-stimulus time in seconds:' ))
+    elif choice=='6':
+        detrend = input_f('Would you like to detrend the data [y/n]: ')
+        a.detrend = detrend not in ['n','no']
+    elif choice=='7':
+        a.detrend_method = select_detrend()
+    elif choice=='8':
+        a.ds_freq = int(input_f( 'What frequency in Hz would you like the data downsampled to?:' ))
+    a.compute()
 
 def remove_mouse_cli():
     a.remove_mouse(input_f("Enter the id of the mouse you'd like to remove: "))
