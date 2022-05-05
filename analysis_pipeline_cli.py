@@ -38,7 +38,7 @@ print('==================Monell Chemical Senses Center==========================
 print('==========================================================================')
 print(' ')
 
-ans = int(input_f('Would you like to 1. load and add to an existing analysis or 2. start a new analysis? [1/2]: '))
+ans = int(input_f('Would you like to 1. load an existing analysis or 2. start a new analysis? [1/2]: '))
 
 if ans == 1:
     #load in the analysis from the specified file in the output folder

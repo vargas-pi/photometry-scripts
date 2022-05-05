@@ -6,7 +6,6 @@ import os
 from datetime import datetime as dt
 from threading import Thread, Event
 import time
-from collections import Callable
 from sys_parameters import *
 
 #NOTE: in general this script can probably be updated to accomodate varible numbers of mice/lines. something to look into

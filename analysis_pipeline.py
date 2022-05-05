@@ -132,7 +132,7 @@ class analysis:
     """
     multi_index = pd.MultiIndex(levels = [[]]*3, codes = [[]]*3, names = ('cond','mouse','trial'))
 
-    def __init__(self, norm_method, t_endrec, ds_freq = 1, t_prestim=300, ex=4, 
+    def __init__(self, norm_method, t_endrec, ds_freq = 1, t_prestim=300, ex=5, 
                  detrend = False, detrend_method = detrend_405_constrained, 
                  file_format='npy', file_loc='analyses',fname=None):
         """
