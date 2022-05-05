@@ -3,7 +3,6 @@
 This repository contains some of the code we use in lab for online viewing of photometry signals and post-hoc analyses. The code for viewing the data is specific to TDT systems but all code for post-hoc analyses should be generalizable so long as you can load the data in the appropriate format. The goal of this code is to provide a user-friendly interface for performing fiber photometry analysis to remove the burden from researchers of writing custom scripts for general pre-processing steps, while allowing those with some knowledge of Python the flexibility to make the analyses their own.
 
 ## Installation 
----
 This code base is not currently pip or conda installable (hopefully in the future it will be!). As a result, before using the pipeline it is important that you first have the repository downloaded locally. Feel free to either clone into this repository through git or simply download and extract a zip file. If you are familiar with using git, this may be the preferable approach a it will allow easy access to future updates. 
 
 Once  you have the code downloaded, we recommend setting up an environment for running the code. This makes it so that you have an isolated setting for running your analyses with all the correct versions of the necessary packages for running things. The requirements are not particularly strict in this case so this step is not entirely necessary so long as you have already have the appropriate versions of the dependencies listed in the file **environment.yml**. This is however good programming practice so I'll briefly detail the steps for doing this below. If you use CPython and are more familiar with virtualenv feel free to use that instead. We will go over the steps for creating an environment from a .yml file using the [Anaconda](https://www.anaconda.com/products/distribution) distribution of Python below. 
@@ -27,8 +26,6 @@ python -m ipykernel install --user --name=photometry
 
 
 ## Workflow
----
-
 The overall workflow for how we use this code in lab and the corresponding files in the repository are as follows:
 
 1. `import_plot.py` - visualize data during data collection
@@ -50,15 +47,12 @@ For newcomers to Python, `--arg value` or `-arg value` are just ways of specifyi
 Exporting data uses the same **import_plot.py** script but with different arguments. The key difference here is we also need to tell the script the location of the raw data files using the `-path` argument. Notably, this is not exactly the file path you define in Synapse before starting the recording. What we need here is a few folders deeper. It should be the last subfolder of this folder. You will also need to a time for the stimulus or each recording your are exporting using the arguments `t_stim1` and `t_stim2`.
 
 ### Post-Hoc Analyses through the Command-Line Interface
-
 We provide a command-line interface for running post-hoc analyses. To launch the CLI, simply run the command **python analysis_pipeline_cli.py**. From here, the CLI will prompt you to provide all the information it needs to run the analysis. 
 
 ### Post-Hoc Analyses through Jupyter Notebooks
-
 See the notebooks folder for some sample notebooks that walk through the process of doing the same analyses inside of a Jupyter Notebook. For those that plan to submit pull requests to this repository, We ask that you keep any custom notebooks,if you want to keep your notebooks inside this repository locally, we ask that you store your notebooks under **notebooks/custom-scripts** where it will not be tracked by git.
 
 ## Prepping External Data For Post-Hoc Analysis
----
 As aforementioned, the pre-processing pipeline is specific to TDT systems. Future iterations of the code will hopefully be able to handle data from other sources implicitly. For now we can provide a blueprint for what would be needed to use our post-hoc analysis. The post-hoc analysis expects as input an npy file that contains a list of objects which are instances of the `mouse_data` object defined in **utilities.py**. As a result, in order to feed any external data into the pipeline, one will need to create such instances. The main things you will need to specify when doing this are as follows
 
 * an identifier for the mouse
@@ -74,5 +68,4 @@ m = mouse_data("ntn123", F465, F405, fs, t_stim = 500, cond = "control" ):
 ```
 
 ## Contact
----
 For any assistance feel free to reach out to [Nathaniel Nyema](mailto:nnyema@gmail.com) or [Alexandra Vargas](mailto:alexandragve@gmail.com)
