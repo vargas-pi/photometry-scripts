@@ -64,7 +64,7 @@ As aforementioned, the pre-processing pipeline is specific to TDT systems. Futur
 
 Below is an example taking into account the order of the positional arguments to the class's init function
 ```
-m = mouse_data("ntn123", F465, F405, fs, t_stim = 500, cond = "control" ):
+m = mouse_data("ntn123", F465, F405, fs, t_stim = 500, cond = "control" )
 ```
 
 ## Contact
