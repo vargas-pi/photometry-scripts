@@ -962,8 +962,7 @@ def load_analysis(fpath):
     if not hasattr(a, 'detrend'):
         a.detrend = False
         a.detrend_method = detrend_405_constrained
-    if not hasattr(a, 'norm'):
-        a.norm = True
+    if not hasattr(a, 'norm_method'):
         a.norm_method = a._norm_method
 
     a.compute()
