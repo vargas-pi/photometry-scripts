@@ -155,14 +155,16 @@ def open_save(path,format='npy',mouse1=None,mouse2=None,t_stim1=None, t_stim2=No
                       raw_data.streams[channels[1][405]].data, 
                       raw_data.streams[channels[1][490]].fs,
                       t_start = raw_data.info.start_date,
-                      t_stim = float(t_stim1)) #create an instance of the data class
+                      t_stim = float(t_stim1),
+                      cond=cond1) #create an instance of the data class
         data.append(m1)
     if mouse2:
         m2=mouse_data(mouse2, raw_data.streams[channels[2][490]].data, 
                       raw_data.streams[channels[2][405]].data, 
                       raw_data.streams[channels[2][490]].fs,
                       t_start = raw_data.info.start_date,
-                      t_stim = float(t_stim2))
+                      t_stim = float(t_stim2),
+                      cond=cond2)
         data.append(m2)
 
     print('saving data...')
