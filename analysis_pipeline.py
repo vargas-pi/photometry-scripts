@@ -447,7 +447,7 @@ class analysis:
             print('Must have usable data loaded in the analysis first!')
             return
 
-        cond = self.conds[0] if self.conds.size==1 else None
+        cond = self.conds[0] if self.conds.size==1 else cond
         if cond is not None:
             if ax is None: _,ax=py.subplots(1,1)
             ax.fill_between(self.t, scale*(self.mean_405[cond] + self.err_405[cond]),
@@ -460,8 +460,9 @@ class analysis:
         else:
             if ax is None:
                 _,ax=py.subplots(1,self.conds.size,figsize=figsize)
-            elif ax.size<self.conds.size:
-                raise Exception('provided axes have invalid dimensions. creating a new one...')
+            elif isinstance(ax, np.ndarray):
+                if ax.size<self.conds.size:
+                    raise Exception('provided axes have invalid dimensions. creating a new one...')
             bnds=[]
             if self.conds.size>1:
                 for j,i in enumerate(self.conds):
