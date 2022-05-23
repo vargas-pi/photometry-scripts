@@ -273,6 +273,19 @@ class analysis:
             py.show()
 
         return m
+    
+    def rename_cond(self, old_name, new_name):
+        """
+        rename a condition in the analysis
+        """
+        tmp = self.raw_data.reset_index()
+        mapping = {old_name : new_name}
+        tmp['cond'] = tmp.cond.replace(mapping)
+        self.raw_data = tmp.set_index(['cond','mouse','trial'])[0]
+        tmp = self.excluded_raw.reset_index()
+        tmp['cond'] = tmp.cond.replace(mapping)
+        self.excluded_raw = tmp.set_index(['cond','mouse','trial'])[0]
+        self.compute()
 
     def compute(self, log = True):
         """
@@ -284,27 +297,14 @@ class analysis:
             # clear the fields for normed data
             self.all_490=pd.DataFrame([],columns = analysis.multi_index )
             self.all_405=pd.DataFrame([],columns = analysis.multi_index )
-            self.normed_data = pd.Series([], index = analysis.multi_index, dtype = object)
-
-            # make sure the raw data field is formatted correctly
-            if not isinstance(self.raw_data, pd.Series):
-                tmp =  pd.Series([], index = analysis.multi_index, dtype = object)
-                for x in self.raw_data:
-                    if not hasattr(x, 'cond'): x.cond = 0
-                    if not hasattr(x, 'trial'): 
-                        get_trial=lambda x: x.trial if hasattr(x,'trial') else -1
-                        get_mouse_raw = lambda mouse: list(filter( lambda x: x.mouse_id==mouse, self.raw_data))
-                        mi=list(map( get_trial, get_mouse_raw(x.mouse_id) ))
-                        x.trial=max(mi)+1
-                    tmp[x.cond, x.mouse_id, x.trial] = x
-                self.raw_data = tmp               
+            self.normed_data = pd.Series([], index = analysis.multi_index, dtype = object)            
 
             # loop through the raw data and redo the normalization/downsampling
-            for r in self.raw_data:
-                m = self.normalize_downsample(r, plot=False)
-                self.normed_data[r.cond, r.mouse_id, r.trial] = m
-                self.all_490[m.cond,m.mouse_id,m.trial] = m.F490
-                self.all_405[m.cond,m.mouse_id,m.trial] = m.F405
+            for r in self.raw_data.index:
+                m = self.normalize_downsample(self.raw_data.loc[r], plot=False)
+                self.normed_data[r] = m
+                self.all_490[r] = m.F490
+                self.all_405[r] = m.F405
 
             self.all_490.index = self.t
             self.all_405.index = self.t
@@ -966,5 +966,16 @@ def load_analysis(fpath):
     if not hasattr(a, 'norm_method'):
         a.norm_method = a._norm_method
 
+    if not isinstance(a.raw_data, pd.Series):
+        tmp =  pd.Series([], index = analysis.multi_index, dtype = object)
+        for x in a.raw_data:
+            if not hasattr(x, 'cond'): x.cond = 0
+            if not hasattr(x, 'trial'): 
+                get_trial=lambda x: x.trial if hasattr(x,'trial') else -1
+                get_mouse_raw = lambda mouse: list(filter( lambda x: x.mouse_id==mouse, a.raw_data))
+                mi=list(map( get_trial, get_mouse_raw(x.mouse_id) ))
+                x.trial=max(mi)+1
+            tmp[x.cond, x.mouse_id, x.trial] = x
+        a.raw_data = tmp    
     a.compute()
     return a
