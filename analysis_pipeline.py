@@ -276,14 +276,17 @@ class analysis:
     
     def rename_cond(self, old_name, new_name):
         """
-        rename a condition in the analysis
+        rename a condition in the 
         """
+        def rename(x):
+            x.cond = new_name if x.cond==old_name else x.cond 
+        self.raw_data.apply(rename) # rename the condition within the mouse_data object
+        self.excluded_raw.apply(rename) # same for the excluded
         tmp = self.raw_data.reset_index()
-        mapping = {old_name : new_name}
-        tmp['cond'] = tmp.cond.replace(mapping)
-        self.raw_data = tmp.set_index(['cond','mouse','trial'])[0]
+        tmp['cond']= tmp[0].apply(lambda x: x.cond) # set the cond column equal to whatever the cond field is in the updated mouse data object
+        self.raw_data = tmp.set_index(['cond','mouse','trial'])[0] # convert back to a series
         tmp = self.excluded_raw.reset_index()
-        tmp['cond'] = tmp.cond.replace(mapping)
+        tmp['cond']= tmp[0].apply(lambda x: x.cond) # same for excluded
         self.excluded_raw = tmp.set_index(['cond','mouse','trial'])[0]
         self.compute()
 
@@ -300,11 +303,11 @@ class analysis:
             self.normed_data = pd.Series([], index = analysis.multi_index, dtype = object)            
 
             # loop through the raw data and redo the normalization/downsampling
-            for r in self.raw_data.index:
-                m = self.normalize_downsample(self.raw_data.loc[r], plot=False)
-                self.normed_data[r] = m
-                self.all_490[r] = m.F490
-                self.all_405[r] = m.F405
+            for index, r in self.raw_data.items():
+                m = self.normalize_downsample(r, plot=False)
+                self.normed_data[index] = m
+                self.all_490[index] = m.F490
+                self.all_405[index] = m.F405
 
             self.all_490.index = self.t
             self.all_405.index = self.t
