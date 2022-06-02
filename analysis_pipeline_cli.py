@@ -109,7 +109,7 @@ def load_append_save_cli():
                 if not resp.lower() in ['n','no']:
                     d[i].cond=resp
             if len(a.raw_data)>0:
-                try: d[i].trial=len(a.raw_data.sort_index().loc[d[i].cond,d[i].mouse_id])
+                try: d[i].trial=len(a.raw_data.sort_index().loc[d[i].cond,d[i].mouse_id, :])
                 except KeyError: d[i].trial=0
             else: d[i].trial=0
 

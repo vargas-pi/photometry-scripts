@@ -228,7 +228,7 @@ class analysis:
                 d[i].cond=0
             #increment the trial number for the given mouse
             if len(self.raw_data)>0:
-                try: d[i].trial=len(self.raw_data.sort_index().loc[d[i].cond,d[i].mouse_id])
+                try: d[i].trial=len(self.raw_data.sort_index().loc[d[i].cond,d[i].mouse_id, :])
                 except KeyError: d[i].trial=0
             else: d[i].trial=0
             self.raw_data[d[i].cond, d[i].mouse_id, d[i].trial] = d[i]
@@ -298,6 +298,19 @@ class analysis:
                         x.trial=max(mi)+1
                     tmp[x.cond, x.mouse_id, x.trial] = x
                 self.raw_data = tmp               
+
+             # make sure the excluded raw data field is formatted correctly
+            if not isinstance(self.excluded_raw, pd.Series):
+                tmp =  pd.Series([], index = analysis.multi_index, dtype = object)
+                for x in self.excluded_raw:
+                    if not hasattr(x, 'cond'): x.cond = 0
+                    if not hasattr(x, 'trial'): 
+                        get_trial=lambda x: x.trial if hasattr(x,'trial') else -1
+                        get_mouse_raw = lambda mouse: list(filter( lambda x: x.mouse_id==mouse, self.excluded_raw))
+                        mi=list(map( get_trial, get_mouse_raw(x.mouse_id) ))
+                        x.trial=max(mi)+1
+                    tmp[x.cond, x.mouse_id, x.trial] = x
+                self.excluded_raw = tmp
 
             # loop through the raw data and redo the normalization/downsampling
             for r in self.raw_data:
@@ -512,10 +525,11 @@ class analysis:
         
         if cond is not None:
             ax.plot(scale * self.all_490.loc[:,idx[cond,mouse]] , 
-                    color = c490, linewidth = linewidth)
+                    color = c490, linewidth = linewidth, label= cond)
             if plot_405:
                 ax.plot(scale * self.all_405.loc[:,idx[cond,mouse]], 
                         color = c405, linewidth = linewidth)
+            ax.legend() #added
         else:
             d = scale * self.all_490.loc[:, idx[:, mouse]]
             d.columns = d.columns.get_level_values('cond')
