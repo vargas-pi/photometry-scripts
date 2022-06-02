@@ -5,6 +5,7 @@ from scipy.interpolate import interp1d
 from scipy.optimize import curve_fit
 from scipy.ndimage import gaussian_filter1d
 from datetime import timedelta
+import pandas as pd
 
 
 output_filename='exported_data'
@@ -23,6 +24,7 @@ class mouse_data:
         if t_stim: self.t_stim = t_stim
         self.cond = cond
         self.centered = False
+        self.df = pd.DataFrame({'490': self.F490, '405':self.F405}, index=self.t)
    
     @property
     def pre_stim_490(self):
@@ -41,6 +43,7 @@ class mouse_data:
             self.t_start = self.t_start + self.t_stim*timedelta(seconds=1)
         self.t_stim = 0
         self.centered = True
+        self.df = pd.DataFrame({'F490': self.F490, 'F405':self.F405}, index=self.t)
 
     def resample(self, tn, kind='linear'):
         f = interp1d(self.t, self.F490, kind, 
@@ -54,12 +57,17 @@ class mouse_data:
         self.t = tn.copy()
         self.n = self.t.size
         self.fs = 1/(self.t[1:] - self.t[:-1]).mean()
+        self.df = pd.DataFrame({'F490': self.F490, 'F405':self.F405}, index=self.t)
     
     def exclude(self, ex):
         excl = lambda x: (x > np.mean(x) + ex*np.std(x)) | (x < np.mean(x) - ex*np.std(x))
         mask = excl(self.F405) | excl(self.F490)
         self.F490[mask] = np.nan
         self.F405[mask] = np.nan
+        self.df = pd.DataFrame({'F490': self.F490, 'F405':self.F405}, index=self.t)
+    
+    def __getitem__(self, index):
+        return self.df.loc[index]
     
 
 

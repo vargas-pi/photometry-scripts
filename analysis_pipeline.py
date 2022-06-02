@@ -273,6 +273,22 @@ class analysis:
             py.show()
 
         return m
+    
+    def rename_cond(self, old_name, new_name):
+        """
+        rename a condition in the 
+        """
+        def rename(x):
+            x.cond = new_name if x.cond==old_name else x.cond 
+        self.raw_data.apply(rename) # rename the condition within the mouse_data object
+        self.excluded_raw.apply(rename) # same for the excluded
+        tmp = self.raw_data.reset_index()
+        tmp['cond']= tmp[0].apply(lambda x: x.cond) # set the cond column equal to whatever the cond field is in the updated mouse data object
+        self.raw_data = tmp.set_index(['cond','mouse','trial'])[0] # convert back to a series
+        tmp = self.excluded_raw.reset_index()
+        tmp['cond']= tmp[0].apply(lambda x: x.cond) # same for excluded
+        self.excluded_raw = tmp.set_index(['cond','mouse','trial'])[0]
+        self.compute()
 
     def compute(self, log = True):
         """
@@ -284,20 +300,7 @@ class analysis:
             # clear the fields for normed data
             self.all_490=pd.DataFrame([],columns = analysis.multi_index )
             self.all_405=pd.DataFrame([],columns = analysis.multi_index )
-            self.normed_data = pd.Series([], index = analysis.multi_index, dtype = object)
-
-            # make sure the raw data field is formatted correctly
-            if not isinstance(self.raw_data, pd.Series):
-                tmp =  pd.Series([], index = analysis.multi_index, dtype = object)
-                for x in self.raw_data:
-                    if not hasattr(x, 'cond'): x.cond = 0
-                    if not hasattr(x, 'trial'): 
-                        get_trial=lambda x: x.trial if hasattr(x,'trial') else -1
-                        get_mouse_raw = lambda mouse: list(filter( lambda x: x.mouse_id==mouse, self.raw_data))
-                        mi=list(map( get_trial, get_mouse_raw(x.mouse_id) ))
-                        x.trial=max(mi)+1
-                    tmp[x.cond, x.mouse_id, x.trial] = x
-                self.raw_data = tmp               
+            self.normed_data = pd.Series([], index = analysis.multi_index, dtype = object)            
 
              # make sure the excluded raw data field is formatted correctly
             if not isinstance(self.excluded_raw, pd.Series):
@@ -313,11 +316,11 @@ class analysis:
                 self.excluded_raw = tmp
 
             # loop through the raw data and redo the normalization/downsampling
-            for r in self.raw_data:
+            for index, r in self.raw_data.items():
                 m = self.normalize_downsample(r, plot=False)
-                self.normed_data[r.cond, r.mouse_id, r.trial] = m
-                self.all_490[m.cond,m.mouse_id,m.trial] = m.F490
-                self.all_405[m.cond,m.mouse_id,m.trial] = m.F405
+                self.normed_data[index] = m
+                self.all_490[index] = m.F490
+                self.all_405[index] = m.F405
 
             self.all_490.index = self.t
             self.all_405.index = self.t
@@ -460,7 +463,7 @@ class analysis:
             print('Must have usable data loaded in the analysis first!')
             return
 
-        cond = self.conds[0] if self.conds.size==1 else None
+        cond = self.conds[0] if self.conds.size==1 else cond
         if cond is not None:
             if ax is None: _,ax=py.subplots(1,1)
             ax.fill_between(self.t, scale*(self.mean_405[cond] + self.err_405[cond]),
@@ -473,8 +476,9 @@ class analysis:
         else:
             if ax is None:
                 _,ax=py.subplots(1,self.conds.size,figsize=figsize)
-            elif ax.size<self.conds.size:
-                raise Exception('provided axes have invalid dimensions. creating a new one...')
+            elif isinstance(ax, np.ndarray):
+                if ax.size<self.conds.size:
+                    raise Exception('provided axes have invalid dimensions. creating a new one...')
             bnds=[]
             if self.conds.size>1:
                 for j,i in enumerate(self.conds):
@@ -979,5 +983,16 @@ def load_analysis(fpath):
     if not hasattr(a, 'norm_method'):
         a.norm_method = a._norm_method
 
+    if not isinstance(a.raw_data, pd.Series):
+        tmp =  pd.Series([], index = analysis.multi_index, dtype = object)
+        for x in a.raw_data:
+            if not hasattr(x, 'cond'): x.cond = 0
+            if not hasattr(x, 'trial'): 
+                get_trial=lambda x: x.trial if hasattr(x,'trial') else -1
+                get_mouse_raw = lambda mouse: list(filter( lambda x: x.mouse_id==mouse, a.raw_data))
+                mi=list(map( get_trial, get_mouse_raw(x.mouse_id) ))
+                x.trial=max(mi)+1
+            tmp[x.cond, x.mouse_id, x.trial] = x
+        a.raw_data = tmp    
     a.compute()
     return a
