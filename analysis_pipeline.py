@@ -302,19 +302,6 @@ class analysis:
             self.all_405=pd.DataFrame([],columns = analysis.multi_index )
             self.normed_data = pd.Series([], index = analysis.multi_index, dtype = object)            
 
-             # make sure the excluded raw data field is formatted correctly
-            if not isinstance(self.excluded_raw, pd.Series):
-                tmp =  pd.Series([], index = analysis.multi_index, dtype = object)
-                for x in self.excluded_raw:
-                    if not hasattr(x, 'cond'): x.cond = 0
-                    if not hasattr(x, 'trial'): 
-                        get_trial=lambda x: x.trial if hasattr(x,'trial') else -1
-                        get_mouse_raw = lambda mouse: list(filter( lambda x: x.mouse_id==mouse, self.excluded_raw))
-                        mi=list(map( get_trial, get_mouse_raw(x.mouse_id) ))
-                        x.trial=max(mi)+1
-                    tmp[x.cond, x.mouse_id, x.trial] = x
-                self.excluded_raw = tmp
-
             # loop through the raw data and redo the normalization/downsampling
             for index, r in self.raw_data.items():
                 m = self.normalize_downsample(r, plot=False)
@@ -993,6 +980,20 @@ def load_analysis(fpath):
                 mi=list(map( get_trial, get_mouse_raw(x.mouse_id) ))
                 x.trial=max(mi)+1
             tmp[x.cond, x.mouse_id, x.trial] = x
-        a.raw_data = tmp    
+        a.raw_data = tmp 
+
+     # make sure the excluded raw data field is formatted correctly
+    if not isinstance(a.excluded_raw, pd.Series):
+        tmp =  pd.Series([], index = analysis.multi_index, dtype = object)
+        for x in a.excluded_raw:
+            if not hasattr(x, 'cond'): x.cond = 0
+            if not hasattr(x, 'trial'): 
+                get_trial=lambda x: x.trial if hasattr(x,'trial') else -1
+                get_mouse_raw = lambda mouse: list(filter( lambda x: x.mouse_id==mouse, a.excluded_raw))
+                mi=list(map( get_trial, get_mouse_raw(x.mouse_id) ))
+                x.trial=max(mi)+1
+            tmp[x.cond, x.mouse_id, x.trial] = x
+        a.excluded_raw = tmp
+
     a.compute()
     return a
