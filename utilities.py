@@ -18,7 +18,9 @@ class mouse_data:
         self.F490 = F490
         self.F405 = F405
         self.fs = fs
-        self.n = len(F490)
+        self.n = min([len(F490), len(F405)]) #make sure that 490 and 405 are the same length
+        self.F490=self.F490[:self.n]
+        self.F405=self.F405[:self.n]
         self.t = t if t.any() else np.arange(0,(self.n)/fs,1/fs)
         if t_start: self.t_start = t_start
         if t_stim: self.t_stim = t_stim
@@ -117,8 +119,13 @@ def fit_405(data, constrained):
 
     #fit the 405 data to the 490
     if constrained:
-        (m, b), _ = curve_fit(lambda x, m, b: np.abs(m)*x + b, filt_ds405, filt_ds490) 
-        f0_ds = np.abs(m) * filt_ds405 + b
+        #try:
+        (m, b), _ = curve_fit(lambda x, m, b: m*x + b, filt_ds405, filt_ds490, bounds=(0,np.inf))
+        # except RuntimeError:
+        #     m=0
+        #     b=filt_ds490.mean()
+        #     print(data.mouse_id)
+        f0_ds = m * filt_ds405 + b
     else:
         m, b = np.polyfit(filt_ds405, filt_ds490, 1)
         f0_ds = m * filt_ds405 + b
