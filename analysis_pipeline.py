@@ -440,7 +440,7 @@ class analysis:
             self.compute()
 
 
-    def plot_both(self, cond=None, c490='g', c405='r', 
+    def plot_both(self, cond=None, c490='g', c405='r', ylim = None,
                   show=True, ax=None, alpha=.3, figsize=(12,5), scale = 1):
         """
         plot the average normalized 490 and 405 signal with error
@@ -459,6 +459,13 @@ class analysis:
             ax.fill_between(self.t, scale*self.mean_490[cond] + scale*self.err_490[cond],
                             scale*(self.mean_490[cond] - self.err_490[cond]), color=c490,alpha=alpha )
             ax.plot(self.t, scale*self.mean_490[cond] , color=c490, linewidth=.5)
+            if scale==100:
+                ax.set_ylabel(r'$\frac{\Delta F}{F}$ (%)')
+            else:
+                ax.set_ylabel(r'$\frac{\Delta F}{F}$')
+            if ylim is not None:
+                ax.set_ylim(ylim)
+            ax.set_xlabel('Time Relative to Stimulus (s)')
         
         else:
             if ax is None:
@@ -488,16 +495,20 @@ class analysis:
                     else:
                         ax.flatten()[j].set_ylabel(r'$\frac{\Delta F}{F}$')
                     ax.flatten()[j].axvline(x=0, c='k',ls='--', alpha=0.5)
+                    if ylim is not None:
+                        ax.flatten()[j].set_ylim(ylim)
                 ax.flatten()[-1].set_xlabel('Time Relative to Stimulus (s)')
                 mins,maxes=np.array(bnds).T
-                for i in range(self.conds.size): ax.flatten()[i].set_ylim(min(mins),max(maxes))
+                if ylim is None:
+                    for i in range(self.conds.size): 
+                        ax.flatten()[i].set_ylim(min(mins),max(maxes))
         if show:
             py.show()
 
         return ax
 
     def plot_ind_trace(self,mouse:str, cond=None, cm405='Reds', cm490='Greens', c490='g',
-                       c405='r', plot_405=True, ax=None, show=True, scale=1, linewidth = 0.5):
+                       c405='r', plot_405=True, ax=None, show=True, scale=1, linewidth = 0.5,  ylim = None):
         """
         plot the individual trace for a given mouse
 
@@ -541,6 +552,9 @@ class analysis:
             ax.set_ylabel(r'$\frac{\Delta F}{F}$ (%)')
         else:
             ax.set_ylabel(r'$\frac{\Delta F}{F}$')
+
+        if ylim is not None:
+            ax.set_ylim(ylim)
         
         if show:
             py.show()
@@ -548,7 +562,7 @@ class analysis:
         return ax
 
         
-    def plot_490(self, cond=None, show=True, ax=None, cm='Set1', c490='g', alpha=.3, scale=1):
+    def plot_490(self, cond=None, show=True, ax=None, cm='Set1', c490='g', alpha=.3, scale=1, ylim = None):
         """
         plot the average normalized 490 signal with error
         """
@@ -580,13 +594,16 @@ class analysis:
         else:
             ax.set_ylabel(r'$\frac{\Delta F}{F}$')
 
+        if ylim is not None:
+            ax.set_ylim(ylim)
+
         if show:
             py.show()
         
         return ax
 
 
-    def bin_plot(self, binsize, save=False, cond=None, show=True, ax=None, cm='Set2', color=None, scale=1):
+    def bin_plot(self, binsize, save=False, cond=None, show=True, ax=None, cm='Set2', color=None, scale=1, ylim = None):
         """
         run bin_plot and then plot the data
 
@@ -623,6 +640,9 @@ class analysis:
             ax.set_ylabel(r'$\frac{\Delta F}{F}$ (%)')
         else:
             ax.set_ylabel(r'$\frac{\Delta F}{F}$')
+        
+        if ylim is not None:
+            ax.set_ylim(ylim)
         
         if show:
             py.show()

@@ -167,8 +167,37 @@ def remove_mouse_cli():
 def retrieve_excluded_cli():
     a.retrieve_excluded(input_f("Enter the id of the mouse you'd like to retrieve: "))
 
+def plot_both_cli():
+    ans = input_f('Would you like to specify the y limit of the plot? [y/n]: ')
+    if ans.lower() not in ['n','no']:
+        l = float(input_f('Please specify the lower bound of the plot: '))
+        u = float(input_f('Please specify the upper bound of the plot: '))
+        ylim = (l,u)
+    else:
+        ylim = None
+    a.plot_both(ylim = ylim)
+
+def plot_490_cli():
+    ans = input_f('Would you like to specify the y limit of the plot? [y/n]: ')
+    if ans.lower() not in ['n','no']:
+        l = float(input_f('Please specify the lower bound of the plot: '))
+        u = float(input_f('Please specify the upper bound of the plot: '))
+        ylim = (l,u)
+    else:
+        ylim = None
+    a.plot_490(ylim = ylim)
+        
+
 def bin_plot_cli():
-    a.bin_plot(int(input_f('How big, in seconds, would you like the bins: ')),save=True)
+    binsize = int(input_f('How big, in seconds, would you like the bins: '))
+    ans = input_f('Would you like to specify the y limit of the plot? [y/n]: ')
+    if ans.lower() not in ['n','no']:
+        l = float(input_f('Please specify the lower bound of the plot: '))
+        u = float(input_f('Please specify the upper bound of the plot: '))
+        ylim = (l,u)
+    else:
+        ylim = None
+    a.bin_plot(binsize, save=True, ylim = ylim)
 
 def bin_auc_cli():
     start=int(input_f('Enter the beginning of the period in seconds relative to the stimulus onset: '))
@@ -226,8 +255,8 @@ while running:
 
 
     tasks={
-        '1':a.plot_both,
-        '2':a.plot_490,
+        '1':plot_both_cli,
+        '2':plot_490_cli,
         '3':load_append_save_cli,
         '4':a.save,
         '5':ind_peak_df_f_cli,
