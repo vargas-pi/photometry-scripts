@@ -3,3 +3,6 @@ __pycache__
 analyses/*
 !analyses/.gitkeep
 .DS_Store
+notebooks/custom-scripts/*
+!notebooks/custom-scripts/.gitkeep
+sys_parameters.py
