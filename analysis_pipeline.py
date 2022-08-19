@@ -819,24 +819,24 @@ class analysis:
 
 
         if extrema=='max':
-            pk_inds=self.all_490.loc[0:].apply(lambda x: x.argmax(skipna=True))
+            pk_inds=self.all_490.loc[0:].apply(lambda x: x.idxmax(skipna=True))
         elif extrema=='min':
-            pk_inds=self.all_490.loc[0:].apply(lambda x: x.argmin(skipna=True))
+            pk_inds=self.all_490.loc[0:].apply(lambda x: x.idxmin(skipna=True))
         else:
             print('Unrecognized extrema!')
             return
 
         
         if ((self.t_endrec-pk_inds)<=20).any(): print(f'Warning! {extrema} is on the edge of the recording')
-        pk_inds[self.t_endrec-pk_inds<=20]-=20
+        pk_inds[(self.t_endrec-pk_inds)<=20]-=20
 
         peaks={}
         for i,v in pk_inds.items():
-            y=self.all_490.loc[0:].iloc[v-5:v+6][i].dropna()
+            y=self.all_490.loc[v-10:v+10][i].dropna()
             peaks.update({i:np.trapz(x=y.index,y=y.values)})
 
         peaks=pd.DataFrame(pd.Series(peaks), columns=[f'{extrema} ∆F/F'])
-        pk_times=pd.DataFrame(pk_inds.apply(lambda x: self.all_490.loc[0:].index[x]), columns=['time (s)'])
+        pk_times=pd.DataFrame(pk_inds, columns=['time (s)'])
 
         peaks=pd.concat([peaks,pk_times],axis=1)
 
@@ -876,9 +876,9 @@ class analysis:
             return
 
         if extrema=='max':
-            pk_inds=self.mean_490.loc[0:].apply(lambda x: x.argmax(skipna=True))
+            pk_inds=self.mean_490.loc[0:].apply(lambda x: x.idxmax(skipna=True))
         elif extrema=='min':
-            pk_inds=self.mean_490.loc[0:].apply(lambda x: x.argmin(skipna=True))
+            pk_inds=self.mean_490.loc[0:].apply(lambda x: x.idxmin(skipna=True))
         else:
             print('Unrecognized extrema!')
             return
@@ -888,7 +888,7 @@ class analysis:
 
         peaks={}
         for i,v in pk_inds.items():
-            y=self.all_490.loc[0:].iloc[v-10:v+10][i].dropna()
+            y=self.all_490.loc[v-10:v+10][i].dropna()
             
             y=y.apply(lambda x: np.trapz(x=x.dropna().index,y=x.dropna().values))
             y.index=y.index.map(lambda x: (i,x))
@@ -896,7 +896,7 @@ class analysis:
 
         peaks=pd.DataFrame(pd.Series(peaks), columns=[f'{extrema} ∆F/F'])
 
-        ts=pk_inds.apply(lambda x: self.all_490.loc[0:].index[x])
+        ts=pk_inds.copy()
         peaks['ts']=ts.loc[peaks.index.get_level_values(0)].values
 
         if pr:
