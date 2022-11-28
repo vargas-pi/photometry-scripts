@@ -427,11 +427,14 @@ class analysis:
             return
 
         if cond is None:
-            self.raw_data.append(self.excluded_raw.xs(pd.IndexSlice[:,mouse], drop_level=False))
+            #self.raw_data.append(self.excluded_raw.xs(pd.IndexSlice[:,mouse], drop_level=False))
+            #cond is 0 for now
+            self.raw_data[:, mouse, 0]=self.excluded_raw[:, mouse, 0]
             self.excluded_raw = self.excluded_raw.drop(index=[mouse],level=1)
-
         else:
-            self.raw_data.append(self.excluded_raw.xs(pd.IndexSlice[cond,mouse], drop_level=False))
+            #self.raw_data.append(self.excluded_raw.xs(pd.IndexSlice[cond,mouse], drop_level=False))
+            tr=self.excluded_raw[cond, mouse].index[0]
+            self.raw_data[cond, mouse, tr]=self.excluded_raw[cond, mouse, tr]
             self.excluded_raw = self.excluded_raw.drop(index=(cond,mouse))
 
         self.loaded=True
@@ -474,7 +477,7 @@ class analysis:
                 if ax.size<self.conds.size:
                     raise Exception('provided axes have invalid dimensions. creating a new one...')
             bnds=[]
-            if self.conds.size>1:
+            if self.conds.size>=1:
                 for j,i in enumerate(self.conds):
                     ax.flatten()[j].fill_between(self.t, scale * (self.mean_405[i] + self.err_405[i]),
                                                  scale * (self.mean_405[i] - self.err_405[i]), 
@@ -572,13 +575,13 @@ class analysis:
             return
         
         if ax is None: _,ax=py.subplots(1,1)
-
         cm=dict(zip(self.conds,sns.color_palette(cm,self.conds.size)))
         
         if cond is not None:
             ax.fill_between(self.t, scale*self.mean_490[cond] + scale*self.err_490[cond],
                             scale*(self.mean_490[cond] - self.err_490[cond]), color=c490,alpha=alpha )
-            ax.plot(self.t, scale*self.mean_490[cond] , color=c490, linewidth=0.5)
+            ax.plot(self.t, scale*self.mean_490[cond] , color=c490, linewidth=0.5, label=cond)
+            ax.legend()
 
         else:
             for i in self.conds:
@@ -698,6 +701,7 @@ class analysis:
 
         if save:
             binned_stats.to_csv(os.path.join(self.file_loc,f"binned_{binsize}s {'_'.join(self.mice)}.csv"))
+            binned.to_csv(os.path.join(self.file_loc,f"binned_{binsize}s_inds {'_'.join(self.mice)}.csv"))
         
             
         return binned_stats,binned

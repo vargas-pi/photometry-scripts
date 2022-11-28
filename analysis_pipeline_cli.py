@@ -6,7 +6,6 @@ This script is a command line interface for running the fiber photometry analysi
 from analysis_pipeline import *
 import sys
 
-
 def input_f(s):
     sys.stdout.flush()
     return input(s)
@@ -165,7 +164,11 @@ def remove_mouse_cli():
     a.remove_mouse(input_f("Enter the id of the mouse you'd like to remove: "))
 
 def retrieve_excluded_cli():
-    a.retrieve_excluded(input_f("Enter the id of the mouse you'd like to retrieve: "))
+    m = input_f("Enter the id of the mouse you'd like to retrieve: ")
+    c = input_f("please enter the condition you would like to retrieve from this mouse's data (to retrieve all type 'all'): ")
+    if c=='all':
+        c=None
+    a.retrieve_excluded(m, c)
 
 def plot_both_cli():
     ans = input_f('Would you like to specify the y limit of the plot? [y/n]: ')
