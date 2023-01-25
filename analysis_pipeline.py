@@ -632,7 +632,8 @@ class analysis:
 
         if cond is not None:
             color=cm[cond] if color is None else color
-            ax.errorbar(x=df.index,y=scale*df['mean'][cond],yerr=scale*df['sem'][cond],color=color)
+            ax.errorbar(x=df.index,y=scale*df['mean'][cond],yerr=scale*df['sem'][cond],color=color, capsize=3, label=cond)
+            ax.legend()
         else:
             for i in self.conds:
                 ax.errorbar(x=df.index,y=scale*df['mean'][i],yerr=scale*df['sem'][i],color=cm[i],label=i)
@@ -836,8 +837,9 @@ class analysis:
 
         peaks={}
         for i,v in pk_inds.items():
-            y=self.all_490.loc[v-10:v+10][i].dropna()
-            peaks.update({i:np.trapz(x=y.index,y=y.values)})
+            #y=self.all_490.loc[v-10:v+10][i].dropna()
+            #peaks.update({i:np.trapz(x=y.index,y=y.values)})
+            peaks.update({i:self.all_490.loc[v][i]})
 
         peaks=pd.DataFrame(pd.Series(peaks), columns=[f'{extrema} ∆F/F'])
         pk_times=pd.DataFrame(pk_inds, columns=['time (s)'])
@@ -892,9 +894,10 @@ class analysis:
 
         peaks={}
         for i,v in pk_inds.items():
-            y=self.all_490.loc[v-10:v+10][i].dropna()
+            #y=self.all_490.loc[v-10:v+10][i].dropna()
+            y=self.all_490.loc[v][i].dropna()
             
-            y=y.apply(lambda x: np.trapz(x=x.dropna().index,y=x.dropna().values))
+            #y=y.apply(lambda x: np.trapz(x=x.dropna().index,y=x.dropna().values))
             y.index=y.index.map(lambda x: (i,x))
             peaks.update(y.to_dict())
 
