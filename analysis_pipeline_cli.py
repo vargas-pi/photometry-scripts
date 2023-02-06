@@ -117,9 +117,16 @@ def load_append_save_cli():
                 except KeyError: d[i].trial=0
             else: d[i].trial=0
 
-            _=a.normalize_downsample(d[i])
+            sys.stdout.flush()
+            _=a.normalize_downsample(d[i], plot=True)
             #allow the user to decide if they'd like to keep the data and store the data in the appropriate place
-            if int(input_f('Would you like to 1. keep or 2. discard this data?[1/2]: '))==1:
+            
+            try:
+                resp=int(input_f('Would you like to 1. keep or 2. discard this data?[1/2]: '))
+            except ValueError:
+                print ('Answer must be 1 or 2. Try again')
+                resp=int(input_f('Would you like to 1. keep or 2. discard this data?[1/2]: '))
+            if resp==1:
                 a.raw_data[d[i].cond, d[i].mouse_id, d[i].trial] = d[i]
                 a.loaded=True
             else:
@@ -220,12 +227,16 @@ def bin_avg_cli():
 def ind_peak_df_f_cli():
     ans=int(input_f('Would you like to compute the 1. max or 2. min? [1/2] '))-1
     opts=['max','min']
-    a.ind_peak_df_f(opts[ans],save=True)
+    vals=int(input_f('Would you like the 1. raw values or 2. integral values? '))-1
+    methods=['False', 'True']
+    a.ind_peak_df_f(opts[ans],save=True, trap=methods[vals])
 
 def mean_peak_df_f_cli():
     ans=int(input_f('Would you like to compute the 1. max or 2. min? [1/2] '))-1
     opts=['max','min']
-    a.mean_peak_df_f(opts[ans],save=True)
+    vals=int(input_f('Would you like the 1. raw values or 2. integral values? '))-1
+    methods=['False', 'True']
+    a.mean_peak_df_f(opts[ans],save=True, trap=methods[vals])
 
 def plot_ind_trace_cli():
     m=input_f('please enter the name of the mouse you would like to view: ')

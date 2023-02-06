@@ -802,7 +802,7 @@ class analysis:
         
         return aucs
 
-    def ind_peak_df_f(self, extrema:str, save=False, pr=True):
+    def ind_peak_df_f(self, extrema:str, save=False, pr=True, trap=False):
         """
         determine either the min or max ∆f/f and time for each mouse separately
         TODO: we should also be saving the times of the peaks
@@ -837,9 +837,11 @@ class analysis:
 
         peaks={}
         for i,v in pk_inds.items():
-            #y=self.all_490.loc[v-10:v+10][i].dropna()
-            #peaks.update({i:np.trapz(x=y.index,y=y.values)})
-            peaks.update({i:self.all_490.loc[v][i]})
+            if trap==True:
+                y=self.all_490.loc[v-10:v+10][i].dropna()
+                peaks.update({i:np.trapz(x=y.index,y=y.values)})
+            else:
+                peaks.update({i:self.all_490.loc[v][i]})
 
         peaks=pd.DataFrame(pd.Series(peaks), columns=[f'{extrema} ∆F/F'])
         pk_times=pd.DataFrame(pk_inds, columns=['time (s)'])
@@ -861,7 +863,7 @@ class analysis:
         return peaks
 
 
-    def mean_peak_df_f(self, extrema:str, save=False, pr=True):
+    def mean_peak_df_f(self, extrema:str, save=False, pr=True, trap=False):
         """
         determine either the min or max ∆f/f in the mean signal and identify the values of the normed 490
         at this time point in each individual mouse
@@ -894,13 +896,13 @@ class analysis:
 
         peaks={}
         for i,v in pk_inds.items():
-            #y=self.all_490.loc[v-10:v+10][i].dropna()
-            y=self.all_490.loc[v][i].dropna()
-            
-            #y=y.apply(lambda x: np.trapz(x=x.dropna().index,y=x.dropna().values))
+            if trap==True:
+                y=self.all_490.loc[v-10:v+10][i].dropna()
+                y=y.apply(lambda x: np.trapz(x=x.dropna().index,y=x.dropna().values))
+            else:
+                y=self.all_490.loc[v][i].dropna()
             y.index=y.index.map(lambda x: (i,x))
             peaks.update(y.to_dict())
-
         peaks=pd.DataFrame(pd.Series(peaks), columns=[f'{extrema} ∆F/F'])
 
         ts=pk_inds.copy()
