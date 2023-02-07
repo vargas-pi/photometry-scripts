@@ -11,6 +11,7 @@ from typing import Dict
 from pathlib import Path
 from copy import deepcopy
 from scipy.io import savemat
+from scipy import signal
 from pandas import IndexSlice as idx
 import seaborn as sns
 
@@ -920,11 +921,73 @@ class analysis:
         if save:
             peaks.to_csv(os.path.join(self.file_loc,f"mean_{extrema}_{'_'.join(self.mice)}.csv"))
 
+        trap=False
         return peaks
 
 
-    def time_to_half_pk(self):
-        raise NotImplementedError
+    def time_to_half_pk(self, extrema:str, filtered=True, pr=False, save=False):
+        """
+        determine time to either the hald min or max ∆f/f for each mouse individually
+
+        Parameters
+        ----------
+        extrema: str
+            extrema (either 'min' or 'max') of the peak to search for
+        filtered: bool
+            whether or not to pass filter over data before determining peak
+        
+        Returns
+        -------
+        time_to_hald: Dict[str,float]
+            dictionary pairing each mouse with the time to half peak value
+        """
+        def find_half_pk(data, extrema):
+            
+            if extrema=='min':
+                half=data[0:].min()/2
+                pkloc=data.idxmin()
+            elif extrema=='max':
+                half=data[0:].max()/2
+                pkloc=data.idxmax()
+            else:
+                print('Unrecognized extrema!')
+                return
+            rangeint=[half-0.0005, half+0.0005]
+            halfpk=np.where(np.logical_and(data>= rangeint[0], data<= rangeint[1]))[0]
+            
+            try: 
+                halfpk=halfpk[halfpk<pkloc][0]
+            except IndexError:
+                halfpk=halfpk[0]
+                
+            return halfpk
+
+        if not self.loaded:
+            print('Must have usable data loaded in the analysis first!')
+            return
+        
+        if filtered:
+            butter=signal.butter(3, 0.002, btype='lowpass', fs=1) #(order, cutoff freq=0.002)
+            data={}
+            for i in self.all_490.columns:
+                data.update({i:signal.filtfilt(*butter,self.all_490[i].fillna(method='ffill'), axis=0)})
+            data=pd.DataFrame(data, index=self.all_490.index)
+        else:
+            data=self.all_490
+        
+        halfs=data.loc[0:].apply(lambda x: find_half_pk(x, extrema))
+        
+        time_to_half=pd.DataFrame(halfs, columns=[f'time to half {extrema} ∆F/F (s)'])
+        
+        if pr:
+            print('')
+            print(time_to_half)
+            
+        if save:
+            #df=pd.DataFrame(time_to_half,columns=[f'time to {extrema} ∆F/F (s)']).T
+            time_to_half.to_csv(os.path.join(self.file_loc,f"time_half_{extrema}_{'_'.join(self.mice)}.csv"))
+        
+        return time_to_half
 
     #old versions of functions
     def compute_means(self):

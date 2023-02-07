@@ -238,6 +238,11 @@ def mean_peak_df_f_cli():
     methods=['False', 'True']
     a.mean_peak_df_f(opts[ans],save=True, trap=methods[vals])
 
+def time_to_half_pk_cli():
+    ans=int(input_f('Would you like to compute the 1. max or 2. min? [1/2] '))-1
+    opts=['max','min']
+    a.time_to_half_pk(opts[ans], filtered=True, pr=True, save=True)
+
 def plot_ind_trace_cli():
     m=input_f('please enter the name of the mouse you would like to view: ')
     c=input_f("please enter the condition you would like to plot this mouse's data from (to plot all type 'no'): ")
@@ -259,15 +264,16 @@ while running:
     print('4. save this analysis')
     print('5. find the peak ∆f/f (min/max) for individual mice')
     print('6. find the peak ∆f/f (min/max) for individual mice at the location of the peak in the mean signal')
-    print('7. find the average value over a specified portion of data')
-    print('8. find the area under the curve for a specified portion of data')
-    print('9. bin and plot the data')
-    print('10. remove a mouse from this analysis')
-    print('11. retrieve an excluded mouse from this analysis')
-    print('12. update the parameters of this analysis')
-    print('13. export normalized 490 data to .mat')
-    print('14. plot the trace for an individual mouse')
-    print('15. exit')
+    print('7. find the time to half peak')
+    print('8. find the average value over a specified portion of data')
+    print('9. find the area under the curve for a specified portion of data')
+    print('10. bin and plot the data')
+    print('11. remove a mouse from this analysis')
+    print('12. retrieve an excluded mouse from this analysis')
+    print('13. update the parameters of this analysis')
+    print('14. export normalized 490 data to .mat')
+    print('15. plot the trace for an individual mouse')
+    print('16. exit')
     print('')
     ans=input_f('(input the number of the desired task): ')
 
@@ -280,14 +286,15 @@ while running:
         '4':a.save,
         '5':ind_peak_df_f_cli,
         '6':mean_peak_df_f_cli,
-        '7':bin_avg_cli,
-        '8':bin_auc_cli,
-        '9':bin_plot_cli,
-        '10':remove_mouse_cli,
-        '11':retrieve_excluded_cli,
-        '12':update_params_cli,
-        '13':a.export_to_mat,
-        '14':plot_ind_trace_cli
+        '7':time_to_half_pk_cli,
+        '8':bin_avg_cli,
+        '9':bin_auc_cli,
+        '10':bin_plot_cli,
+        '11':remove_mouse_cli,
+        '12':retrieve_excluded_cli,
+        '13':update_params_cli,
+        '14':a.export_to_mat,
+        '15':plot_ind_trace_cli
         }
     
     try:
