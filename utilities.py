@@ -116,19 +116,16 @@ def fit_405(data, constrained):
     #TODO: change this to a butterworth filter instead
     filt_ds490 = gaussian_filter1d(data.F490[::int(data.fs)], sigma = 10)
     filt_ds405 = gaussian_filter1d(data.F405[::int(data.fs)], sigma = 10)
+    
+    m, b = np.polyfit(filt_ds405, filt_ds490, 1)
+    f0_ds = m * filt_ds405 + b
 
     #fit the 405 data to the 490
     if constrained:
-        #try:
-        (m, b), _ = curve_fit(lambda x, m, b: m*x + b, filt_ds405, filt_ds490, bounds=(0,np.inf))
-        # except RuntimeError:
-        #     m=0
-        #     b=filt_ds490.mean()
-        #     print(data.mouse_id)
-        f0_ds = m * filt_ds405 + b
-    else:
-        m, b = np.polyfit(filt_ds405, filt_ds490, 1)
-        f0_ds = m * filt_ds405 + b
+        if m<0:
+            f0_ds = np.zeros_like(filt_ds490)
+            m = None
+            b = None
     
     # upsample the baseline estimate
     f0_fn = interp1d( data.t[::int(data.fs)], f0_ds, 
@@ -164,14 +161,17 @@ def detrend_405_constrained(data:mouse_data):
     """
 
     f0, m, b= fit_405(data, constrained = True)
-    f0 -= np.median(f0[data.t<0])
+    if m is not None:
+        f0 -= np.median(f0[data.t<0])
 
-    normed_490 = data.F490 - f0
-    #map 405 to 490 and subtract the baseline
-    normed_405 = (data.F405*np.abs(m) + b) - f0
-    #map back to 405 space for further processing
-    normed_405 = (normed_405 - b)/np.abs(m)
-    return normed_490, normed_405
+        normed_490 = data.F490 - f0
+        #map 405 to 490 and subtract the baseline
+        normed_405 = (data.F405*np.abs(m) + b) - f0
+        #map back to 405 space for further processing
+        normed_405 = (normed_405 - b)/np.abs(m)
+        return normed_490, normed_405
+    else:
+        return data.F490, data.F405
 
 
 def detrend_405(data:mouse_data):

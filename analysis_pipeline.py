@@ -12,7 +12,6 @@ from pathlib import Path
 from copy import deepcopy
 from scipy.io import savemat
 from scipy import signal
-from pandas import IndexSlice as idx
 import seaborn as sns
 
 
@@ -134,7 +133,7 @@ class analysis:
     multi_index = pd.MultiIndex(levels = [[]]*3, codes = [[]]*3, names = ('cond','mouse','trial'))
 
     def __init__(self, norm_method, t_endrec, ds_freq = 1, t_prestim=300, ex=5, 
-                 detrend = False, detrend_method = detrend_405_constrained, 
+                 detrend = False, norm = True, detrend_method = detrend_405_constrained, 
                  file_format='npy', file_loc='analyses',fname=None):
         """
         Parameters
@@ -162,6 +161,7 @@ class analysis:
         self.norm_method = norm_method
         self.t_endrec = t_endrec
         self.detrend = detrend
+        self.norm = norm
         self.detrend_method = detrend_method
         self.normed_data = pd.Series([], index = analysis.multi_index, dtype = object)
         self.raw_data = pd.Series([], index = analysis.multi_index, dtype = object)
@@ -259,7 +259,8 @@ class analysis:
         m.resample(self.t)
         if self.detrend: 
             m.F490, m.F405 = self.detrend_method(m)
-        m.F490, m.F405 = self.norm_method(m)
+        if self.norm:
+            m.F490, m.F405 = self.norm_method(m)
 
         #plot the data
         if plot:
@@ -444,7 +445,7 @@ class analysis:
             self.compute()
 
 
-    def plot_both(self, cond=None, c490='g', c405='r', ylim = None,
+    def plot_both(self, cond=None, c490='g', c405='r', ylim = None, linewidth=.5,
                   show=True, ax=None, alpha=.3, figsize=(12,5), scale = 1):
         """
         plot the average normalized 490 and 405 signal with error
@@ -459,10 +460,10 @@ class analysis:
             if ax is None: _,ax=py.subplots(1,1)
             ax.fill_between(self.t, scale*(self.mean_405[cond] + self.err_405[cond]),
                             scale*(self.mean_405[cond] - self.err_405[cond]), color=c405,alpha=alpha  )
-            ax.plot(self.t, scale*self.mean_405[cond], color=c405, linewidth=.5)
+            ax.plot(self.t, scale*self.mean_405[cond], color=c405, linewidth=linewidth)
             ax.fill_between(self.t, scale*self.mean_490[cond] + scale*self.err_490[cond],
                             scale*(self.mean_490[cond] - self.err_490[cond]), color=c490,alpha=alpha )
-            ax.plot(self.t, scale*self.mean_490[cond] , color=c490, linewidth=.5)
+            ax.plot(self.t, scale*self.mean_490[cond] , color=c490, linewidth=linewidth)
             if scale==100:
                 ax.set_ylabel(r'$\frac{\Delta F}{F}$ (%)')
             else:
@@ -483,14 +484,14 @@ class analysis:
                     ax.flatten()[j].fill_between(self.t, scale * (self.mean_405[i] + self.err_405[i]),
                                                  scale * (self.mean_405[i] - self.err_405[i]), 
                                                  color = c405, alpha = alpha  )
-                    ax.flatten()[j].plot(self.t, scale * self.mean_405[i], color = c405, linewidth=.5)
+                    ax.flatten()[j].plot(self.t, scale * self.mean_405[i], color = c405, linewidth=linewidth)
                     bnds.append(ax.flatten()[j].get_ylim())
                 
                 for j,i in enumerate(self.conds):
                     ax.flatten()[j].fill_between(self.t, scale * self.mean_490[i] + scale*self.err_490[i],
                                                  scale * (self.mean_490[i] - self.err_490[i]), 
                                                  color = c490, alpha = alpha)
-                    ax.flatten()[j].plot(self.t, scale * self.mean_490[i] , color=c490, linewidth=.5)
+                    ax.flatten()[j].plot(self.t, scale * self.mean_490[i] , color=c490, linewidth=linewidth)
                     bnds.append(ax.flatten()[j].get_ylim())
                     
                     ax.flatten()[j].set_title(i)
@@ -530,16 +531,16 @@ class analysis:
         cm405=sns.color_palette(cm405,self.conds.size)
         
         if cond is not None:
-            ax.plot(scale * self.all_490.loc[:,idx[cond,mouse]] , 
+            ax.plot(scale * self.all_490.loc[:,pd.IndexSlice[cond,mouse]] , 
                     color = c490, linewidth = linewidth, label= cond)
             if plot_405:
-                ax.plot(scale * self.all_405.loc[:,idx[cond,mouse]], 
+                ax.plot(scale * self.all_405.loc[:,pd.IndexSlice[cond,mouse]], 
                         color = c405, linewidth = linewidth)
             ax.legend() #added
         else:
-            d = scale * self.all_490.loc[:, idx[:, mouse]]
+            d = scale * self.all_490.loc[:, pd.IndexSlice[:, mouse]]
             d.columns = d.columns.get_level_values('cond')
-            d5 = scale * self.all_405.loc[:, idx[:,mouse]]
+            d5 = scale * self.all_405.loc[:, pd.IndexSlice[:,mouse]]
             d5.columns = d.columns.get_level_values('cond')
 
             if plot_405:
@@ -607,7 +608,7 @@ class analysis:
         return ax
 
 
-    def bin_plot(self, binsize, save=False, cond=None, show=True, ax=None, cm='Set2', color=None, scale=1, ylim = None):
+    def bin_plot(self, binsize, save=False, cond=None, show=True, ax=None, cm='Set2', color=None, scale=1, ylim = None, capsize=3, linewidth=1):
         """
         run bin_plot and then plot the data
 
@@ -633,7 +634,7 @@ class analysis:
 
         if cond is not None:
             color=cm[cond] if color is None else color
-            ax.errorbar(x=df.index,y=scale*df['mean'][cond],yerr=scale*df['sem'][cond],color=color, capsize=3, label=cond)
+            ax.errorbar(x=df.index,y=scale*df['mean'][cond],yerr=scale*df['sem'][cond],color=color, capsize=capsize, label=cond, linewidth=linewidth)
             ax.legend()
         else:
             for i in self.conds:
@@ -967,7 +968,7 @@ class analysis:
             return
         
         if filtered:
-            butter=signal.butter(3, 0.002, btype='lowpass', fs=1) #(order, cutoff freq=0.002)
+            butter=signal.butter(3, 0.002, btype='lowpass', fs=self.ds_freq) #(order, cutoff freq=0.002)
             data={}
             for i in self.all_490.columns:
                 data.update({i:signal.filtfilt(*butter,self.all_490[i].fillna(method='ffill'), axis=0)})
@@ -1028,7 +1029,7 @@ class loaded_analysis(analysis):
             else:
                 setattr(self,key,d[key])
 
-def load_analysis(fpath):
+def load_analysis(fpath, recompute = True):
     """
     load an exported analysis (whether json or npy)
 
@@ -1061,6 +1062,8 @@ def load_analysis(fpath):
         a.detrend_method = detrend_405_constrained
     if not hasattr(a, 'norm_method'):
         a.norm_method = a._norm_method
+    if not hasattr(a, 'norm'):
+        a.norm = True
 
     if not isinstance(a.raw_data, pd.Series):
         tmp =  pd.Series([], index = analysis.multi_index, dtype = object)
@@ -1086,6 +1089,7 @@ def load_analysis(fpath):
                 x.trial=max(mi)+1
             tmp[x.cond, x.mouse_id, x.trial] = x
         a.excluded_raw = tmp
-
-    a.compute()
+    
+    if recompute:
+        a.compute()
     return a
